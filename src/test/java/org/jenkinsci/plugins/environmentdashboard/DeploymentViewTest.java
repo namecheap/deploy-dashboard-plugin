@@ -14,6 +14,7 @@ import jenkins.scm.impl.mock.MockSCMController;
 import jenkins.scm.impl.mock.MockSCMDiscoverBranches;
 import jenkins.scm.impl.mock.MockSCMSource;
 import org.htmlunit.html.HtmlAnchor;
+import org.htmlunit.html.HtmlButton;
 import org.htmlunit.html.HtmlPage;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
@@ -116,6 +117,96 @@ class DeploymentViewTest {
             HtmlPage page = wc.goTo("view/legacy-view/");
             assertEquals(200, page.getWebResponse().getStatusCode());
             assertTrue(page.getWebResponse().getContentAsString().contains("1.2.3"));
+        }
+    }
+
+    private static DeploymentView twoJobsEachWithTwoEnvironments(JenkinsRule j) throws Exception {
+        for (String name : List.of("alpha", "beta")) {
+            FreeStyleProject job = j.createFreeStyleProject(name);
+            job.getBuildersList().add(new Deployment("production", "1.0.0"));
+            job.getBuildersList().add(new Deployment("staging", "1.0.0"));
+            j.buildAndAssertSuccess(job);
+        }
+        DeploymentView view = new DeploymentView("collapse-view");
+        j.jenkins.addView(view);
+        view.setIncludeRegex("alpha|beta");
+        view.save();
+        return view;
+    }
+
+    @Test
+    void eachJobGetsASummaryRowAndItsOwnEnvironmentSection(JenkinsRule j) throws Exception {
+        twoJobsEachWithTwoEnvironments(j);
+
+        try (JenkinsRule.WebClient wc = j.createWebClient()) {
+            HtmlPage page = wc.goTo("view/collapse-view/");
+
+            assertEquals(2, page.getByXPath("//tbody[@class='edb-job']").size(), "one summary row per job");
+            assertEquals(
+                    2, page.getByXPath("//tbody[@class='edb-job-envs']").size(), "one environment section per job");
+            // The environment rows stay in the served HTML whether or not they
+            // are collapsed, so anything reading the page without running
+            // scripts still sees every deployment.
+            assertEquals(
+                    4,
+                    page.getByXPath("//tbody[@class='edb-job-envs']/tr").size(),
+                    "every environment row must be present in the HTML");
+            assertEquals(
+                    2,
+                    page.getByXPath("//button[contains(@class,'edb-toggle')]").size(),
+                    "each job needs a toggle");
+        }
+    }
+
+    @Test
+    void theTableCarriesNoInlineEventHandlers(JenkinsRule j) throws Exception {
+        // JENKINS-74429: this has to keep working under script-src 'self'.
+        twoJobsEachWithTwoEnvironments(j);
+
+        try (JenkinsRule.WebClient wc = j.createWebClient()) {
+            HtmlPage page = wc.goTo("view/collapse-view/");
+            assertTrue(
+                    page.getByXPath("//table//*[@onclick or @onchange or @onload]")
+                            .isEmpty(),
+                    "the dashboard must not use inline event handlers");
+        }
+    }
+
+    @Test
+    void clickingTheToggleCollapsesOnlyThatJob(JenkinsRule j) throws Exception {
+        twoJobsEachWithTwoEnvironments(j);
+
+        try (JenkinsRule.WebClient wc = j.createWebClient()) {
+            wc.getOptions().setThrowExceptionOnScriptError(false);
+            HtmlPage page = wc.goTo("view/collapse-view/");
+
+            assertEquals(
+                    Boolean.FALSE,
+                    page.executeJavaScript("document.getElementById('edb-envs-0').hidden")
+                            .getJavaScriptResult(),
+                    "two jobs is under the collapse-by-default threshold, so it starts expanded");
+
+            HtmlButton toggle = page.getFirstByXPath("//button[@data-edb-toggle='edb-envs-0']");
+            assertNotNull(toggle);
+            toggle.click();
+            wc.waitForBackgroundJavaScript(2000);
+
+            assertEquals(
+                    Boolean.TRUE,
+                    page.executeJavaScript("document.getElementById('edb-envs-0').hidden")
+                            .getJavaScriptResult(),
+                    "clicking the toggle must collapse that job");
+            assertEquals(
+                    Boolean.FALSE,
+                    page.executeJavaScript("document.getElementById('edb-envs-1').hidden")
+                            .getJavaScriptResult(),
+                    "collapsing one job must not touch another");
+            assertEquals(
+                    "false",
+                    page.executeJavaScript(
+                                    "document.querySelector(\"[data-edb-toggle='edb-envs-0']\").getAttribute('aria-expanded')")
+                            .getJavaScriptResult(),
+                    "aria-expanded must follow the visual state");
         }
     }
 

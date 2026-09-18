@@ -8,7 +8,72 @@
 (function () {
     "use strict";
 
+    // Collapsing is done here rather than server-side on purpose: the rows are
+    // always in the HTML, so anything reading the page without running scripts
+    // still sees every deployment.
+    var STORAGE_PREFIX = "deploy-dashboard.expanded.";
+    var DEFAULT_EXPANDED_UP_TO = 5;
+
+    function storageKey(id) {
+        return STORAGE_PREFIX + window.location.pathname + "#" + id;
+    }
+
+    function remembered(id) {
+        try {
+            return window.localStorage.getItem(storageKey(id));
+        } catch (e) {
+            // Private windows and blocked site data throw rather than returning
+            // null; a dashboard that cannot remember is still a dashboard.
+            return null;
+        }
+    }
+
+    function remember(id, expanded) {
+        try {
+            window.localStorage.setItem(storageKey(id), expanded ? "1" : "0");
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    function apply(button, expanded) {
+        var rows = document.getElementById(button.getAttribute("data-edb-toggle"));
+        if (!rows) {
+            return;
+        }
+        rows.hidden = !expanded;
+        button.setAttribute("aria-expanded", expanded ? "true" : "false");
+        var icon = button.querySelector("svg, .jenkins-menu-dropdown-chevron, span");
+        if (icon && icon.classList) {
+            icon.classList.toggle("edb-collapsed-chevron", !expanded);
+        }
+    }
+
+    function initialise() {
+        var buttons = document.querySelectorAll(".edb-toggle");
+        var expandedByDefault = buttons.length <= DEFAULT_EXPANDED_UP_TO;
+        buttons.forEach(function (button) {
+            var saved = remembered(button.getAttribute("data-edb-toggle"));
+            apply(button, saved === null ? expandedByDefault : saved === "1");
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initialise);
+    } else {
+        initialise();
+    }
+
     document.addEventListener("click", function (event) {
+        var toggle = event.target.closest(".edb-toggle");
+        if (toggle) {
+            event.preventDefault();
+            var expanded = toggle.getAttribute("aria-expanded") !== "true";
+            apply(toggle, expanded);
+            remember(toggle.getAttribute("data-edb-toggle"), expanded);
+            return;
+        }
+
         var toggle = event.target.closest(".edb-popup-toggle");
         if (!toggle) {
             return;
