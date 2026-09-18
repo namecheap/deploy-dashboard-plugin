@@ -8,7 +8,7 @@ Plugin source code is hosted on [GitHub](https://github.com/jenkinsci/deploy-das
 
 There is an official [Jenkins Plugin Development Guild](https://wiki.jenkins.io/display/JENKINS/Plugin+tutorial) by Jenkins. All the details you will find there.
 
-In short, you have to be familiar with java (jdk 1.8 is required) and maven build tool.
+In short, you have to be familiar with java (JDK 21 or 25 is required) and maven build tool.
 
 ```bash
 ./mvnw clean install
