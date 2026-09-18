@@ -1,12 +1,19 @@
 package org.jenkinsci.plugins.environmentdashboard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
+import hudson.model.FreeStyleBuild;
 import hudson.model.FreeStyleProject;
 import hudson.model.Result;
 import hudson.util.FormValidation;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
@@ -78,6 +85,59 @@ class DeploymentTest {
         job.getBuildersList().add(new Deployment(null, "1.2.3"));
 
         j.assertLogContains(Deployment.REQUIRED_ENV, j.assertBuildStatus(Result.FAILURE, job.scheduleBuild2(0)));
+    }
+
+    @Test
+    void theOwningRunIsNotWrittenIntoBuildXml(JenkinsRule j) throws Exception {
+        // RunAction2 injects the owner on load, so it is not state this action
+        // owns. Persisting it wrote a positional back-reference into the run's
+        // own build.xml.
+        FreeStyleProject job = j.createFreeStyleProject("persistence");
+        job.getBuildersList().add(new Deployment("production", "1.0.0"));
+        FreeStyleBuild build = j.buildAndAssertSuccess(job);
+
+        String buildXml = Files.readString(Path.of(build.getRootDir().toString(), "build.xml"), UTF_8);
+        String action = buildXml.substring(
+                buildXml.indexOf("<org.jenkinsci.plugins.environmentdashboard.Deployment_-DeploymentAction>"),
+                buildXml.indexOf("</org.jenkinsci.plugins.environmentdashboard.Deployment_-DeploymentAction>"));
+        assertFalse(action.contains("<run"), "the owning run must not be persisted, but build.xml has: " + action);
+        assertTrue(action.contains("<env>production</env>"), action);
+        assertTrue(action.contains("<buildNumber>1.0.0</buildNumber>"), action);
+
+        j.jenkins.reload();
+        FreeStyleBuild reloaded =
+                j.jenkins.getItemByFullName("persistence", FreeStyleProject.class).getBuildByNumber(1);
+        Deployment.DeploymentAction loaded = reloaded.getAction(Deployment.DeploymentAction.class);
+        assertNotNull(loaded, "the action must survive a reload");
+        assertEquals("production", loaded.getEnv());
+        assertEquals("1.0.0", loaded.getBuildNumber());
+        assertSame(reloaded, loaded.getRun(), "onLoad must inject the reloaded run");
+    }
+
+    @Test
+    void aBuildXmlFromBeforeThisFixStillLoads(JenkinsRule j) throws Exception {
+        // Records already on disk carry the back-reference. Reading them must
+        // keep working, with the field simply ignored.
+        FreeStyleProject job = j.createFreeStyleProject("legacy-persistence");
+        job.getBuildersList().add(new Deployment("staging", "2.0.0"));
+        FreeStyleBuild build = j.buildAndAssertSuccess(job);
+
+        Path xml = Path.of(build.getRootDir().toString(), "build.xml");
+        String tag = "<org.jenkinsci.plugins.environmentdashboard.Deployment_-DeploymentAction>";
+        Files.writeString(
+                xml,
+                Files.readString(xml, UTF_8)
+                        .replace(tag, tag + "\n      <run class=\"build\" reference=\"../../..\"/>"),
+                UTF_8);
+
+        j.jenkins.reload();
+        FreeStyleBuild reloaded =
+                j.jenkins.getItemByFullName("legacy-persistence", FreeStyleProject.class).getBuildByNumber(1);
+        Deployment.DeploymentAction loaded = reloaded.getAction(Deployment.DeploymentAction.class);
+        assertNotNull(loaded, "an action written by the older version must still load");
+        assertEquals("staging", loaded.getEnv());
+        assertEquals("2.0.0", loaded.getBuildNumber());
+        assertSame(reloaded, loaded.getRun());
     }
 
     @Test
