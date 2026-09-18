@@ -1,0 +1,106 @@
+# Build, test and smoke-test the plugin against a real Jenkins.
+#
+# The repository had no GitHub Actions at all: the Jenkinsfile targets
+# ci.jenkins.io, which builds the jenkinsci/ repository and never runs here, so
+# pull requests to this fork were merged without anything being compiled.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Unit and integration tests. The matrix mirrors the Jenkinsfile so the two
+  # cannot drift: same JDK, same platforms.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (${{ matrix.os }}, JDK ${{ matrix.jdk }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            jdk: 21
+          - os: windows-latest
+            jdk: 21
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: ${{ matrix.jdk }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp verify
+
+      - name: Upload the plugin
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hpi
+          path: target/*.hpi
+          if-no-files-found: error
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: surefire-${{ matrix.os }}-${{ matrix.jdk }}
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # End-to-end against a real Jenkins.
+  #
+  # The test harness runs an in-JVM Jenkins with the plugin on the classpath,
+  # which is not the same thing as a released .hpi being installed into a stock
+  # distribution: it does not exercise plugin packaging, dependency resolution
+  # from the update centre, or the Jelly views as an installed plugin renders
+  # them. Everything this job asserts is a thing a user would notice and the
+  # unit tests would not.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E (real Jenkins)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Download the plugin built by the test job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hpi
+          path: dist
+
+      - name: Build a stock Jenkins with the plugin installed
+        run: |
+          set -euo pipefail
+          cp dist/*.hpi .github/e2e/deploy-dashboard.hpi
+          docker build -t dd-e2e .github/e2e
+
+      - name: Start it
+        run: docker run -d --name jenkins -p 8080:8080 dd-e2e
+
+      - name: The plugin is installed and active
+        run: python3 .github/e2e/check_installed.py
+
+      - name: Run the seeded pipeline and assert the dashboard
+        run: .github/e2e/assert.sh
+
+      - name: Jenkins log on failure
+        if: failure()
+        run: docker logs jenkins
