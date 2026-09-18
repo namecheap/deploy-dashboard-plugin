@@ -1,22 +1,29 @@
 package org.jenkinsci.plugins.environmentdashboard;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.AbstractProject;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
+import hudson.util.FormValidation;
 import java.io.IOException;
 import jenkins.model.RunAction2;
 import jenkins.tasks.SimpleBuildStep;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 
 public class Deployment extends Builder implements SimpleBuildStep {
+
+    static final String REQUIRED_ENV = "addDeployToDashboard: env is required";
+    static final String REQUIRED_BUILD_NUMBER = "addDeployToDashboard: buildNumber is required";
 
     private final String env;
     private final String buildNumber;
@@ -35,6 +42,19 @@ public class Deployment extends Builder implements SimpleBuildStep {
         return buildNumber;
     }
 
+    /**
+     * Both arguments are required, and a missing one fails the build.
+     *
+     * <p>They used to be recorded exactly as given. A null env then reached
+     * {@code DeploymentView.getEnvs()}, whose {@code groupingBy} rejects a null
+     * key -- so one build calling {@code addDeployToDashboard(buildNumber:
+     * '1.2.3')} without an env returned HTTP 500 for the entire dashboard, for
+     * every job on it and every user, until that build was deleted. The step
+     * itself had succeeded, so nothing pointed the author at the cause.
+     *
+     * <p>Failing here instead puts the error in the build that caused it, at
+     * the moment it is made, which is the only place it can be acted on.
+     */
     @Override
     public void perform(
             @NonNull Run<?, ?> run,
@@ -43,9 +63,17 @@ public class Deployment extends Builder implements SimpleBuildStep {
             @NonNull Launcher launcher,
             @NonNull TaskListener listener
     ) throws InterruptedException, IOException {
+        String cleanEnv = Util.fixEmptyAndTrim(env);
+        String cleanBuildNumber = Util.fixEmptyAndTrim(buildNumber);
+        if (cleanEnv == null) {
+            throw new AbortException(REQUIRED_ENV);
+        }
+        if (cleanBuildNumber == null) {
+            throw new AbortException(REQUIRED_BUILD_NUMBER);
+        }
         run.addAction(new DeploymentAction(
-                env,
-                buildNumber
+                cleanEnv,
+                cleanBuildNumber
         ));
     }
 
@@ -61,6 +89,16 @@ public class Deployment extends Builder implements SimpleBuildStep {
         @Override
         public boolean isApplicable(Class<? extends AbstractProject> t) {
             return true;
+        }
+
+        public FormValidation doCheckEnv(@QueryParameter String value) {
+            return Util.fixEmptyAndTrim(value) == null ? FormValidation.error(REQUIRED_ENV) : FormValidation.ok();
+        }
+
+        public FormValidation doCheckBuildNumber(@QueryParameter String value) {
+            return Util.fixEmptyAndTrim(value) == null
+                    ? FormValidation.error(REQUIRED_BUILD_NUMBER)
+                    : FormValidation.ok();
         }
     }
 

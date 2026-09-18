@@ -56,6 +56,12 @@ public class DeploymentView extends ListView {
                 // but the whole view dereferences it, so a broken record is
                 // dropped here rather than breaking the page for every job.
                 .filter(action -> action.getRun() != null)
+                // groupingBy rejects a null key, so a single action recorded
+                // before the step required an env took the whole page down with
+                // a 500 -- every job on the view, for every user, until that one
+                // build was deleted. New ones cannot be created, but the records
+                // already on disk outlive the fix.
+                .filter(action -> action.getEnv() != null)
                 // TreeMap, not the default HashMap: the environment rows are
                 // rendered in map order, and hash order is neither stable across
                 // restarts nor meaningful to a reader.
