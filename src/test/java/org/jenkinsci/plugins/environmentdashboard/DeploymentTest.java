@@ -1,12 +1,12 @@
 package org.jenkinsci.plugins.environmentdashboard;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import hudson.model.FreeStyleBuild;
 import hudson.model.FreeStyleProject;
@@ -32,12 +32,13 @@ class DeploymentTest {
     @Test
     void aBlankEnvFailsTheBuild(JenkinsRule j) throws Exception {
         WorkflowJob job = j.createProject(WorkflowJob.class, "blank-env");
-        job.setDefinition(new CpsFlowDefinition(
-                "node { addDeployToDashboard(env: '   ', buildNumber: '1.2.3') }", true));
+        job.setDefinition(
+                new CpsFlowDefinition("node { addDeployToDashboard(env: '   ', buildNumber: '1.2.3') }", true));
 
         WorkflowRun run = j.assertBuildStatus(Result.FAILURE, job.scheduleBuild2(0));
         j.assertLogContains(Deployment.REQUIRED_ENV, run);
-        assertNull(run.getAction(Deployment.DeploymentAction.class),
+        assertNull(
+                run.getAction(Deployment.DeploymentAction.class),
                 "nothing may be recorded when the step rejects its arguments");
     }
 
@@ -55,8 +56,8 @@ class DeploymentTest {
     @Test
     void aBlankBuildNumberFailsTheBuild(JenkinsRule j) throws Exception {
         WorkflowJob job = j.createProject(WorkflowJob.class, "blank-release");
-        job.setDefinition(new CpsFlowDefinition(
-                "node { addDeployToDashboard(env: 'production', buildNumber: '') }", true));
+        job.setDefinition(
+                new CpsFlowDefinition("node { addDeployToDashboard(env: 'production', buildNumber: '') }", true));
 
         WorkflowRun run = j.assertBuildStatus(Result.FAILURE, job.scheduleBuild2(0));
         j.assertLogContains(Deployment.REQUIRED_BUILD_NUMBER, run);
@@ -105,8 +106,9 @@ class DeploymentTest {
         assertTrue(action.contains("<buildNumber>1.0.0</buildNumber>"), action);
 
         j.jenkins.reload();
-        FreeStyleBuild reloaded =
-                j.jenkins.getItemByFullName("persistence", FreeStyleProject.class).getBuildByNumber(1);
+        FreeStyleBuild reloaded = j.jenkins
+                .getItemByFullName("persistence", FreeStyleProject.class)
+                .getBuildByNumber(1);
         Deployment.DeploymentAction loaded = reloaded.getAction(Deployment.DeploymentAction.class);
         assertNotNull(loaded, "the action must survive a reload");
         assertEquals("production", loaded.getEnv());
@@ -131,8 +133,9 @@ class DeploymentTest {
                 UTF_8);
 
         j.jenkins.reload();
-        FreeStyleBuild reloaded =
-                j.jenkins.getItemByFullName("legacy-persistence", FreeStyleProject.class).getBuildByNumber(1);
+        FreeStyleBuild reloaded = j.jenkins
+                .getItemByFullName("legacy-persistence", FreeStyleProject.class)
+                .getBuildByNumber(1);
         Deployment.DeploymentAction loaded = reloaded.getAction(Deployment.DeploymentAction.class);
         assertNotNull(loaded, "an action written by the older version must still load");
         assertEquals("staging", loaded.getEnv());

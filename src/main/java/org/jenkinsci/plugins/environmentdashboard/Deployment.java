@@ -62,8 +62,8 @@ public class Deployment extends Builder implements SimpleBuildStep {
             @NonNull FilePath workspace,
             @NonNull EnvVars environment,
             @NonNull Launcher launcher,
-            @NonNull TaskListener listener
-    ) throws InterruptedException, IOException {
+            @NonNull TaskListener listener)
+            throws InterruptedException, IOException {
         String cleanEnv = Util.fixEmptyAndTrim(env);
         String cleanBuildNumber = Util.fixEmptyAndTrim(buildNumber);
         if (cleanEnv == null) {
@@ -72,10 +72,7 @@ public class Deployment extends Builder implements SimpleBuildStep {
         if (cleanBuildNumber == null) {
             throw new AbortException(REQUIRED_BUILD_NUMBER);
         }
-        run.addAction(new DeploymentAction(
-                cleanEnv,
-                cleanBuildNumber
-        ));
+        run.addAction(new DeploymentAction(cleanEnv, cleanBuildNumber));
     }
 
     @Extension
@@ -142,11 +139,7 @@ public class Deployment extends Builder implements SimpleBuildStep {
 
         @Override
         public String getDisplayName() {
-            return String.format(
-                    "Deployment %s to %s",
-                    buildNumber,
-                    env
-            );
+            return String.format("Deployment %s to %s", buildNumber, env);
         }
 
         @Override

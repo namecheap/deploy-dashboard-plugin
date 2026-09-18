@@ -50,8 +50,7 @@ class DeploymentViewTest {
         List<String> envs = units.get(0).getEnvironments().stream()
                 .map(DeploymentView.Unit.Environment::getName)
                 .collect(Collectors.toList());
-        assertEquals(List.of("production", "staging"), envs,
-                "both environments must appear, in a deterministic order");
+        assertEquals(List.of("production", "staging"), envs, "both environments must appear, in a deterministic order");
     }
 
     @Test
@@ -73,7 +72,9 @@ class DeploymentViewTest {
         DeploymentView.Unit.Environment env =
                 new DeploymentView.Unit.Environment("production", List.of(olderAction, newerAction));
 
-        assertEquals(newerAction.getBuildNumber(), env.getCurrentAction().getBuildNumber(),
+        assertEquals(
+                newerAction.getBuildNumber(),
+                env.getCurrentAction().getBuildNumber(),
                 "the current deployment must be the most recently started one");
         assertEquals(
                 List.of(newerAction.getBuildNumber(), olderAction.getBuildNumber()),
@@ -90,8 +91,8 @@ class DeploymentViewTest {
         // entire view -- every job on it, for every user, until that single
         // build was deleted. Attached directly, which is how it got on disk.
         WorkflowJob job = j.createProject(WorkflowJob.class, "legacy");
-        job.setDefinition(new CpsFlowDefinition(
-                "node { addDeployToDashboard(env: 'production', buildNumber: '1.2.3') }", true));
+        job.setDefinition(
+                new CpsFlowDefinition("node { addDeployToDashboard(env: 'production', buildNumber: '1.2.3') }", true));
         WorkflowRun run = j.buildAndAssertSuccess(job);
         run.addAction(new Deployment.DeploymentAction(null, "9.9.9"));
         run.save();
@@ -103,7 +104,8 @@ class DeploymentViewTest {
 
         List<DeploymentView.Unit> units = view.getUnits(view.getItems());
         assertEquals(1, units.size());
-        assertEquals(List.of("production"),
+        assertEquals(
+                List.of("production"),
                 units.get(0).getEnvironments().stream()
                         .map(DeploymentView.Unit.Environment::getName)
                         .collect(Collectors.toList()),
@@ -134,7 +136,9 @@ class DeploymentViewTest {
         List<DeploymentView.Unit> units = view.getUnits(view.getItems());
         assertEquals(1, units.size(), "a freestyle job that deploys belongs on the dashboard");
         assertEquals("production", units.get(0).getEnvironments().get(0).getName());
-        assertEquals("4.5.6", units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
+        assertEquals(
+                "4.5.6",
+                units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
     }
 
     @Test
@@ -154,7 +158,9 @@ class DeploymentViewTest {
         List<DeploymentView.Unit> units = view.getUnits(view.getItems());
         assertEquals(1, units.size(), "a folder holding a job that deploys belongs on the dashboard");
         assertEquals("staging", units.get(0).getEnvironments().get(0).getName());
-        assertEquals("7.0.0", units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
+        assertEquals(
+                "7.0.0",
+                units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
     }
 
     @Test
@@ -164,11 +170,17 @@ class DeploymentViewTest {
         // against a real one built from an SCM rather than assumed.
         try (MockSCMController scm = MockSCMController.create()) {
             scm.createRepository("app");
-            scm.addFile("app", "master", "pipeline",
+            scm.addFile(
+                    "app",
+                    "master",
+                    "pipeline",
                     "Jenkinsfile",
                     "node { addDeployToDashboard(env: 'production', buildNumber: '1.0.0') }".getBytes(UTF_8));
             scm.cloneBranch("app", "master", "hotfix");
-            scm.addFile("app", "hotfix", "pipeline",
+            scm.addFile(
+                    "app",
+                    "hotfix",
+                    "pipeline",
                     "Jenkinsfile",
                     "node { addDeployToDashboard(env: 'production', buildNumber: '1.0.1') }".getBytes(UTF_8));
 
@@ -185,9 +197,12 @@ class DeploymentViewTest {
 
             List<DeploymentView.Unit> units = view.getUnits(view.getItems());
             assertEquals(1, units.size());
-            DeploymentView.Unit.Environment production = units.get(0).getEnvironments().get(0);
+            DeploymentView.Unit.Environment production =
+                    units.get(0).getEnvironments().get(0);
             assertEquals("production", production.getName());
-            assertEquals(2, production.getActions().size(),
+            assertEquals(
+                    2,
+                    production.getActions().size(),
                     "both branches deployed to production, so both belong in the history");
         }
     }
@@ -195,8 +210,8 @@ class DeploymentViewTest {
     @Test
     void viewRendersDeploymentsWithoutInlineJavascript(JenkinsRule j) throws Exception {
         WorkflowJob job = j.createProject(WorkflowJob.class, "app");
-        job.setDefinition(new CpsFlowDefinition(
-                "node { addDeployToDashboard(env: 'production', buildNumber: '1.2.3') }", true));
+        job.setDefinition(
+                new CpsFlowDefinition("node { addDeployToDashboard(env: 'production', buildNumber: '1.2.3') }", true));
         WorkflowRun run = j.buildAndAssertSuccess(job);
 
         Deployment.DeploymentAction action = run.getAction(Deployment.DeploymentAction.class);
@@ -212,15 +227,16 @@ class DeploymentViewTest {
         List<DeploymentView.Unit> units = view.getUnits(view.getItems());
         assertEquals(1, units.size());
         assertEquals("production", units.get(0).getEnvironments().get(0).getName());
-        assertEquals("1.2.3", units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
+        assertEquals(
+                "1.2.3",
+                units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
 
         try (JenkinsRule.WebClient wc = j.createWebClient()) {
             HtmlPage page = wc.goTo("view/deployments/");
             String html = page.getWebResponse().getContentAsString();
             assertTrue(html.contains("1.2.3"), "release version must be shown on the dashboard");
             assertTrue(html.contains("edb-popup-toggle"), "environment link must use the CSP-safe toggle");
-            assertFalse(html.contains("javascript:toggle"),
-                    "inline javascript: URLs must be gone (JENKINS-74429)");
+            assertFalse(html.contains("javascript:toggle"), "inline javascript: URLs must be gone (JENKINS-74429)");
         }
     }
 }
