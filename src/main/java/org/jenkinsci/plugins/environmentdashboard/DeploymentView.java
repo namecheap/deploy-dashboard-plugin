@@ -29,8 +29,8 @@ import net.sf.json.JSONObject;
 import org.jenkinsci.plugins.environmentdashboard.Deployment.DeploymentAction;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.verb.POST;
 import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.verb.POST;
 
 public class DeploymentView extends ListView {
     @DataBoundConstructor
