@@ -1,0 +1,31 @@
+# The Jenkins project's own static analysis for plugins: CodeQL run with the
+# jenkins-infra query pack rather than the generic Java one, so it looks for the
+# mistakes plugins actually make -- unsafe Stapler bindings, do* methods missing
+# a permission check or CSRF protection, XSS through Jelly.
+#
+# This plugin has exactly that surface: BuildAddUrl.BuildUrlAction issues a
+# redirect built from a user-supplied URL, DescriptorImpl exposes doCheck*
+# methods, and the dashboard interpolates job and environment names into its
+# views.
+#
+# Findings appear under Security > Code scanning; they do not fail the build.
+name: Jenkins Security Scan
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+
+jobs:
+  security-scan:
+    uses: jenkins-infra/jenkins-security-scan/.github/workflows/jenkins-security-scan.yaml@da7438f10fecc21e40174d420ef34daae0874122 # v2.4.0
+    with:
+      java-cache: maven
+      java-version: 21
