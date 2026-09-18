@@ -13,6 +13,7 @@ import jenkins.branch.BranchSource;
 import jenkins.scm.impl.mock.MockSCMController;
 import jenkins.scm.impl.mock.MockSCMDiscoverBranches;
 import jenkins.scm.impl.mock.MockSCMSource;
+import org.htmlunit.html.HtmlAnchor;
 import org.htmlunit.html.HtmlPage;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
@@ -115,6 +116,42 @@ class DeploymentViewTest {
             HtmlPage page = wc.goTo("view/legacy-view/");
             assertEquals(200, page.getWebResponse().getStatusCode());
             assertTrue(page.getWebResponse().getContentAsString().contains("1.2.3"));
+        }
+    }
+
+    @Test
+    void clickingAnEnvironmentOpensItsHistoryInADialog(JenkinsRule j) throws Exception {
+        // The history used to be a hidden div per environment, shown by toggling
+        // display. It is cloned out of a <template> into core's dialog now, so
+        // what is worth testing is that a click still produces a dialog with the
+        // releases in it. Markup alone would not show that.
+        WorkflowJob job = j.createProject(WorkflowJob.class, "dialog-app");
+        job.setDefinition(
+                new CpsFlowDefinition("node { addDeployToDashboard(env: 'production', buildNumber: '5.6.7') }", true));
+        j.buildAndAssertSuccess(job);
+
+        DeploymentView view = new DeploymentView("dialog-view");
+        j.jenkins.addView(view);
+        view.setIncludeRegex("dialog-app");
+        view.save();
+
+        try (JenkinsRule.WebClient wc = j.createWebClient()) {
+            wc.getOptions().setThrowExceptionOnScriptError(false);
+            HtmlPage page = wc.goTo("view/dialog-view/");
+            // Core renders a dialog element of its own, so the question is not
+            // whether one exists but whether ours has the history in it.
+            assertTrue(
+                    page.getByXPath("//dialog[contains(., '5.6.7')]").isEmpty(),
+                    "the history must not be on the page before the click");
+
+            HtmlAnchor toggle = page.getFirstByXPath("//a[contains(@class,'edb-popup-toggle')]");
+            assertNotNull(toggle, "the environment must be a toggle");
+            toggle.click();
+            wc.waitForBackgroundJavaScript(2000);
+
+            assertFalse(
+                    page.getByXPath("//dialog[contains(., '5.6.7')]").isEmpty(),
+                    "clicking an environment must open a dialog holding its release history");
         }
     }
 
@@ -237,6 +274,27 @@ class DeploymentViewTest {
             assertTrue(html.contains("1.2.3"), "release version must be shown on the dashboard");
             assertTrue(html.contains("edb-popup-toggle"), "environment link must use the CSP-safe toggle");
             assertFalse(html.contains("javascript:toggle"), "inline javascript: URLs must be gone (JENKINS-74429)");
+
+            // Core keeps CSS for these only as legacy compatibility and has
+            // dropped a few at every UI refresh. Losing them degrades the page
+            // silently rather than breaking it, so it needs asserting.
+            //
+            // Asserted over this view's own tables rather than the whole
+            // document: core's page decoration still emits pane-frame itself,
+            // which is core's business and not something this plugin can fix.
+            assertFalse(
+                    page.getByXPath("//table[contains(@class,'jenkins-table')]").isEmpty(),
+                    "tables must use core's current table styling");
+            // Only the two this view actually used. "pane" is not in the
+            // list because core's own side panel renders a table carrying it,
+            // so asserting on it would be testing core rather than this plugin.
+            for (String legacy : List.of("bigtable", "stripped-odd")) {
+                assertTrue(
+                        page.getByXPath("//table[contains(concat(' ', normalize-space(@class), ' '), ' " + legacy
+                                        + " ')]")
+                                .isEmpty(),
+                        "a table still carries the legacy core class: " + legacy);
+            }
         }
     }
 }

@@ -58,8 +58,18 @@ grep -q 'production' <<<"$html" \
   || fail "only one environment is shown; a build that deploys to several must list them all"
 
 # Environment order must be deterministic, not hash order.
-if [ "$(grep -o -E 'production|staging' <<<"$html" | head -2 | tr '\n' ' ')" != "production staging " ]; then
-  fail "environments are not in a deterministic order"
+#
+# Read off the toggles rather than by grepping the whole page for the names:
+# there is exactly one toggle per environment row, in render order, whereas a
+# raw substring search counts every other mention too. It used to work only
+# because each name happened to appear once per row, and broke the moment the
+# markup carried the name anywhere else.
+order=$(grep -oE 'data-popup-title="[^"]*"' <<<"$html" \
+  | sed 's/.*| //; s/"$//' \
+  | head -2 \
+  | tr '\n' ' ')
+if [ "$order" != "production staging " ]; then
+  fail "environments are not in a deterministic order, got: [$order]"
 fi
 
 # JENKINS-74429: the view must not ship inline javascript: URLs.
@@ -67,6 +77,13 @@ grep -q 'javascript:toggle' <<<"$html" \
   && fail "the view still emits inline javascript: URLs"
 grep -q 'edb-popup-toggle' <<<"$html" \
   || fail "the CSP-safe modal toggle is missing"
+
+# The dashboard must render on core's current table styling, not the legacy
+# pane/bigtable classes core only keeps for compatibility.
+grep -q 'jenkins-table' <<<"$html" \
+  || fail "the dashboard is not using core's current table styling"
+grep -qE 'class="[^"]*\b(bigtable|stripped-odd)\b' <<<"$html" \
+  && fail "the dashboard still carries legacy core table classes"
 
 echo "--- the buildAddUrl redirect ---"
 link=$(python3 - <<'PY'
