@@ -1,0 +1,15 @@
+<?jelly escape-by-default='true'?>
+<!--
+  Leaving both lists empty means no narrowing at all, not "nobody". The link
+  stays visible to everyone who can already read the build.
+-->
+<j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form">
+    <f:entry title="Users" field="usersText"
+             description="User ids, one per line or comma separated. Leave empty to not narrow by user.">
+        <f:textarea/>
+    </f:entry>
+    <f:entry title="Groups" field="groupsText"
+             description="Group or role names as the security realm reports them, one per line or comma separated.">
+        <f:textarea/>
+    </f:entry>
+</j:jelly>

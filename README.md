@@ -82,6 +82,29 @@ node {
 
 ![Sidebar](docs/images/deploy-action.png)
 
+#### Restricting who is shown a link
+
+A link can be narrowed to particular people with the optional `visibleTo`:
+
+```groovy
+buildAddUrl(title: 'Deploy to PROD', url: '/job/deploy-prod/parambuild/?version=1.2.3',
+            visibleTo: [users: ['alice'], groups: ['release-managers']])
+```
+
+Listing neither users nor groups means no narrowing, and the link behaves as it
+always has. When something is listed, the link is hidden from everyone else in
+the sidebar and the details bar, **and its URL answers 404** — hiding an icon
+is not access control, since the target is in the page source and the link's
+path is derivable.
+
+This only narrows; it cannot widen. Jenkins has already decided who may read
+the build before any of this runs.
+
+**It is not the security boundary for deploying.** The job the link points at
+enforces its own permissions -- a `parambuild` URL still requires `Item.BUILD`
+on that job. `visibleTo` decides who is shown a shortcut, not who may use what
+it points at.
+
 #### Notes on modern Jenkins (plugin 0.2.0+)
 
 Since 0.2.0 the button no longer exposes the raw target URL as the action URL.
