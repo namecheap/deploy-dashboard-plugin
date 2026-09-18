@@ -37,6 +37,10 @@ jobs:
         include:
           - os: ubuntu-24.04
             jdk: 21
+          # Jenkins 2.555.1 and later run on Java 21 or 25, and the archetype
+          # builds plugins on both. The artefact is published from the 21 leg.
+          - os: ubuntu-24.04
+            jdk: 25
           - os: windows-latest
             jdk: 21
     steps:
@@ -55,7 +59,7 @@ jobs:
       # Kept for humans to download a build of a pull request. The e2e job
       # packages its own copy so it does not have to wait for this matrix.
       - name: Upload the plugin
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-24.04' && matrix.jdk == 21
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: hpi
