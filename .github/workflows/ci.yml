@@ -95,6 +95,23 @@ jobs:
       - name: Start it
         run: docker run -d --name jenkins -p 8080:8080 dd-e2e
 
+      - name: Wait for Jenkins to come up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/login >/dev/null 2>&1; then
+              echo "Jenkins answered after $((i * 5))s"
+              # The seed script runs during startup; give it a moment to finish
+              # creating the job and the view before anything asks for them.
+              sleep 5
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Jenkins did not start within 5 minutes"
+          docker logs jenkins
+          exit 1
+
       - name: The plugin is installed and active
         run: python3 .github/e2e/check_installed.py
 
