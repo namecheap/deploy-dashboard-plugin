@@ -2,7 +2,20 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
          xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:i="jelly:fmt">
 
-    <link href="${rootURL}/plugin/deploy-dashboard/css/blink.css" type="text/css" rel="stylesheet"/>
+    <!--
+      jenkins-table, not the pane/bigtable/stripped-odd classes this view used
+      to carry. Core still ships CSS for those, but only as legacy
+      compatibility: none of core's own current views use them, and every UI
+      refresh has removed a few more. When the last of them goes, a dashboard
+      built on them does not break loudly, it just quietly loses its striping,
+      borders and spacing, which no test would notice.
+
+      The release history is emitted as a <template> per environment and opened
+      through core's dialog, rather than pre-rendered into hidden divs styled by
+      our own CSS. That stylesheet hardcoded a white panel and a black header,
+      so the history was unreadable in dark theme; core's dialog is themed by
+      core, which is the point of using it.
+    -->
     <st:adjunct includes="org.jenkinsci.plugins.environmentdashboard.DeploymentView.dashboard"/>
 
     <j:set var="views" value="${it.owner.views}"/>
@@ -17,126 +30,87 @@
         <j:otherwise>
             <st:include page="viewTabs.jelly" it="${it.owner.viewsTabBar}"/>
             <j:set var="units" value="${it.getUnits(it.items)}"/>
-            <div class="pane-frame">
-                <table class="pane bigtable stripped-odd">
-                    <tbody>
-                        <tr class="header">
-                            <th>
-                                <span style="margin-left: 1em">
-                                    Job
-                                </span>
-                            </th>
-                            <th>
-                                <span>
-                                    Environment
-                                </span>
-                            </th>
-                            <th>
-                                <span>
-                                    Release
-                                </span>
-                            </th>
-                            <th>
-                                <span>
-                                    Result
-                                </span>
-                            </th>
-                            <th>
-                                <span>
-                                    Completed
-                                </span>
-                            </th>
-                        </tr>
-                        <j:forEach var="unit" indexVar="i" items="${units}">
-                            <j:forEach var="environment" indexVar="j" items="${unit.getEnvironments()}">
-                                <tr>
-                                    <td>
-                                        <j:if test="${j == 0}">
-                                            <a href="${unit.getJob().getAbsoluteUrl()}" style="margin-left: .5em">${unit.getJob().name}</a>
-                                        </j:if>
-                                    </td>
-                                    <td>
-                                        <a href="#" class="edb-popup-toggle" data-popup-id="popup_${i}_${j}">
-                                            ${environment.getName()}
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <a href="${environment.getCurrentAction().run.getAbsoluteUrl()}">
-                                            ${environment.getCurrentAction().buildNumber}
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <l:icon alt="${environment.getCurrentAction().run.description}"
-                                                class="${environment.getCurrentAction().run.buildStatusIconClassName} icon-lg"/>
-                                    </td>
-                                    <td>
-                                        ${environment.getCurrentAction().run.timestampString}
-                                    </td>
-                                </tr>
-                            </j:forEach>
+            <table class="jenkins-table jenkins-table--medium">
+                <thead>
+                    <tr>
+                        <th>Job</th>
+                        <th>Environment</th>
+                        <th>Release</th>
+                        <th>Result</th>
+                        <th>Completed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <j:forEach var="unit" indexVar="i" items="${units}">
+                        <j:forEach var="environment" indexVar="j" items="${unit.getEnvironments()}">
+                            <tr>
+                                <td>
+                                    <j:if test="${j == 0}">
+                                        <a class="jenkins-table__link" href="${unit.getJob().getAbsoluteUrl()}">${unit.getJob().name}</a>
+                                    </j:if>
+                                </td>
+                                <td>
+                                    <a href="#" class="edb-popup-toggle jenkins-table__link"
+                                       data-popup-id="popup_${i}_${j}"
+                                       data-popup-title="${unit.getJob().name} | ${environment.getName()}">
+                                        ${environment.getName()}
+                                    </a>
+                                </td>
+                                <td>
+                                    <a class="jenkins-table__link" href="${environment.getCurrentAction().run.getAbsoluteUrl()}">
+                                        ${environment.getCurrentAction().buildNumber}
+                                    </a>
+                                </td>
+                                <td class="jenkins-table__cell--tight">
+                                    <l:icon alt="${environment.getCurrentAction().run.description}"
+                                            class="${environment.getCurrentAction().run.buildStatusIconClassName} icon-lg"/>
+                                </td>
+                                <td>
+                                    ${environment.getCurrentAction().run.timestampString}
+                                </td>
+                            </tr>
                         </j:forEach>
-                    </tbody>
-                </table>
-            </div>
+                    </j:forEach>
+                </tbody>
+            </table>
 
             <j:forEach var="unit" indexVar="i" items="${units}">
                 <j:forEach var="environment" indexVar="j" items="${unit.getEnvironments()}">
-                    <div id="popup_${i}_${j}" class="modal">
-                        <!-- Modal content -->
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <span class="close"></span>
-                                <h2>${unit.getJob().name} | ${environment.getName()}</h2>
-                            </div>
-                            <div class="modal-body">
-                                <div class="pane-frame">
-                                    <table class="pane bigtable stripped-odd">
-                                        <tbody>
-                                            <tr class="header">
-                                                <th>
-                                                    <span>
-                                                        Release
-                                                    </span>
-                                                </th>
-                                                <th>
-                                                    <span>
-                                                        Result
-                                                    </span>
-                                                </th>
-                                                <th>
-                                                    <span>
-                                                        Completed
-                                                    </span>
-                                                </th>
-                                            </tr>
-                                            <j:forEach var="deployment" items="${environment.getActions()}">
-                                                <tr>
-                                                    <td>
-                                                        <a href="${deployment.run.getAbsoluteUrl()}">
-                                                            ${deployment.buildNumber}
-                                                        </a>
-                                                    </td>
-                                                    <td>
-                                                        <l:icon alt="${deployment.run.description}"
-                                                                class="${deployment.run.buildStatusIconClassName} icon-lg"/>
-                                                    </td>
-                                                    <td>
-                                                        ${deployment.run.timestampString}
-                                                    </td>
-                                                </tr>
-                                            </j:forEach>
-                                        </tbody>
-                                    </table>
-                                    <j:if test="${environment.truncated}">
-                                        <p class="edb-history-truncated">
-                                            Showing the most recent ${environment.actions.size()}
-                                            of ${environment.totalCount} deployments.
-                                        </p>
-                                    </j:if>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <template id="popup_${i}_${j}">
+                        <table class="jenkins-table jenkins-table--medium">
+                            <thead>
+                                <tr>
+                                    <th>Release</th>
+                                    <th>Result</th>
+                                    <th>Completed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <j:forEach var="deployment" items="${environment.getActions()}">
+                                    <tr>
+                                        <td>
+                                            <a class="jenkins-table__link" href="${deployment.run.getAbsoluteUrl()}">
+                                                ${deployment.buildNumber}
+                                            </a>
+                                        </td>
+                                        <td class="jenkins-table__cell--tight">
+                                            <l:icon alt="${deployment.run.description}"
+                                                    class="${deployment.run.buildStatusIconClassName} icon-lg"/>
+                                        </td>
+                                        <td>
+                                            ${deployment.run.timestampString}
+                                        </td>
+                                    </tr>
+                                </j:forEach>
+                            </tbody>
+                        </table>
+                        <j:if test="${environment.truncated}">
+                            <p class="edb-history-truncated">
+                                Showing the most recent ${environment.actions.size()}
+                                of ${environment.totalCount} deployments.
+                            </p>
+                        </j:if>
+                    </template>
                 </j:forEach>
             </j:forEach>
 

@@ -68,6 +68,13 @@ grep -q 'javascript:toggle' <<<"$html" \
 grep -q 'edb-popup-toggle' <<<"$html" \
   || fail "the CSP-safe modal toggle is missing"
 
+# The dashboard must render on core's current table styling, not the legacy
+# pane/bigtable classes core only keeps for compatibility.
+grep -q 'jenkins-table' <<<"$html" \
+  || fail "the dashboard is not using core's current table styling"
+grep -qE 'class="[^"]*\b(bigtable|stripped-odd)\b' <<<"$html" \
+  && fail "the dashboard still carries legacy core table classes"
+
 echo "--- the buildAddUrl redirect ---"
 link=$(python3 - <<'PY'
 import re, urllib.request
