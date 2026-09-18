@@ -24,8 +24,30 @@ done
 echo "$status" | grep -q '"result":"SUCCESS"' \
   || fail "the seeded pipeline did not succeed: $status"
 
+echo "--- building legacy-app (freestyle) ---"
+curl -fsS -X POST "$J/job/legacy-app/build?delay=0sec" >/dev/null
+
+for i in $(seq 1 60); do
+  status=$(curl -fsS "$J/job/legacy-app/1/api/json?tree=building,result" 2>/dev/null || echo '{}')
+  case "$status" in
+    *'"building":false'*) break ;;
+  esac
+  sleep 5
+done
+echo "$status" | grep -q '"result":"SUCCESS"' \
+  || fail "the seeded freestyle job did not succeed: $status"
+
 echo "--- the dashboard view ---"
 html=$(curl -fsS "$J/view/deployments/")
+
+# A freestyle deployment is recorded by the same build step and has to be shown
+# by the same view. It used to be silently dropped.
+grep -q 'legacy-app' <<<"$html" \
+  || fail "the freestyle job is missing from the dashboard entirely"
+grep -q '2\.7\.0' <<<"$html" \
+  || fail "the freestyle job's release is not shown"
+grep -qw 'qa' <<<"$html" \
+  || fail "the freestyle job's environment is not shown"
 
 grep -q '3\.1\.4' <<<"$html" || fail "the dashboard does not show the deployed release 3.1.4"
 grep -q 'staging'  <<<"$html" || fail "the dashboard does not show the staging environment"
