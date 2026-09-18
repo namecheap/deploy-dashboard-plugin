@@ -29,6 +29,7 @@ import net.sf.json.JSONObject;
 import org.jenkinsci.plugins.environmentdashboard.Deployment.DeploymentAction;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.verb.POST;
 import org.kohsuke.stapler.StaplerRequest2;
 
 public class DeploymentView extends ListView {
@@ -319,6 +320,9 @@ public class DeploymentView extends ListView {
         }
 
         // Copy-n-paste from ListView$Descriptor as sadly we cannot inherit from that class
+        // Compiles a regex and nothing else; see Deployment.DescriptorImpl for why no permission check.
+        @POST
+        // lgtm[jenkins/no-permission-check]
         public FormValidation doCheckIncludeRegex(@QueryParameter String value) {
             String v = Util.fixEmpty(value);
             if (v != null) {

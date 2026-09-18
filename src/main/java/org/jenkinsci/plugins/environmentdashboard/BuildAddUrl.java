@@ -144,6 +144,13 @@ public class BuildAddUrl extends Builder implements SimpleBuildStep {
             }
         }
 
+        /**
+         * A GET that only redirects. It must stay GET (users click it from the
+         * sidebar and the details bar), it has no side effects, and it is only
+         * reachable through the run's URL, which Jenkins already gates on
+         * Item.READ while resolving the job and the build.
+         */
+        // lgtm[jenkins/csrf] lgtm[jenkins/no-permission-check]
         public void doIndex(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException {
             if (!isSafeUrl()) {
                 rsp.sendError(StaplerResponse2.SC_NOT_FOUND);
