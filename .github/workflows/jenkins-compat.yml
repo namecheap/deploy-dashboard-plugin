@@ -146,11 +146,21 @@ jobs:
       - name: Package the plugin
         run: ./mvnw -B -ntp -DskipTests -Dspotbugs.skip package
 
+      # The base image used to come from an ARG so this job could override it
+      # with --build-arg. That made it invisible to Dependabot, which only
+      # parses a literal image:tag on a FROM line, so the pinned LTS tag would
+      # never have been bumped. The FROM is literal now and this job rewrites
+      # it -- and then checks the rewrite took, because the failure mode of
+      # getting that wrong is testing LTS twice while reporting it as weekly.
       - name: Build the weekly Jenkins with the plugin installed
         run: |
           set -euo pipefail
           cp target/*.hpi .github/e2e/deploy-dashboard.hpi
-          docker build --build-arg JENKINS_IMAGE=jenkins/jenkins:latest-jdk21 -t dd-e2e-weekly .github/e2e
+          sed 's|^FROM .*|FROM jenkins/jenkins:latest-jdk21|' \
+            .github/e2e/Dockerfile > .github/e2e/Dockerfile.weekly
+          grep -qx 'FROM jenkins/jenkins:latest-jdk21' .github/e2e/Dockerfile.weekly \
+            || { echo "::error::the weekly base image rewrite did not take; this job would silently retest LTS"; exit 1; }
+          docker build -f .github/e2e/Dockerfile.weekly -t dd-e2e-weekly .github/e2e
 
       - name: Start it
         run: docker run -d --name jenkins -p 8080:8080 dd-e2e-weekly

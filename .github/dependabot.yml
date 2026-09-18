@@ -1,0 +1,39 @@
+# The plugin parent, the plugin BOM and the pinned Actions all move every few
+# weeks and nothing in this repository bumped them.
+#
+# Note that committing this file is not enough on a fork: Dependabot version
+# updates are off by default for forks and have to be enabled in the repository
+# settings.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      # Weekly Jenkins core and most BOM releases land Monday or Tuesday.
+      day: tuesday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the BOM rather than one per managed plugin.
+      jenkins-bom:
+        patterns:
+          - "io.jenkins.tools.bom:*"
+      test-plugins:
+        patterns:
+          - "org.jenkins-ci.plugins.workflow:*"
+          - "org.jenkins-ci.plugins:scm-api"
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+
+  # The e2e base image. Its FROM line has to stay a literal image:tag for this
+  # to do anything -- see the comment in .github/e2e/Dockerfile.
+  - package-ecosystem: docker
+    directory: /.github/e2e
+    schedule:
+      interval: weekly
+    labels: [dependencies]
