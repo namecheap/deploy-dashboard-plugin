@@ -305,6 +305,23 @@ public class DeploymentView extends ListView {
         }
     }
 
+    // THROWAWAY: deliberately unsafe, to prove the Jenkins Security Scan is
+    // matching this codebase rather than silently finding nothing. This branch
+    // is never merged.
+    public void doSelfTestRedirect(org.kohsuke.stapler.StaplerRequest2 req, org.kohsuke.stapler.StaplerResponse2 rsp)
+            throws java.io.IOException {
+        // Unvalidated redirect from a request parameter.
+        rsp.sendRedirect(req.getParameter("url"));
+    }
+
+    public void doSelfTestDelete(org.kohsuke.stapler.StaplerRequest2 req) throws Exception {
+        // Mutating do* method with no permission check and no @RequirePOST.
+        hudson.model.Item item = jenkins.model.Jenkins.get().getItemByFullName(req.getParameter("job"));
+        if (item != null) {
+            item.delete();
+        }
+    }
+
     @Extension
     public static class DeploymentViewDescriptor extends ViewDescriptor {
         public DeploymentViewDescriptor() {
