@@ -6,8 +6,13 @@
     <servers>
         <server>
             <id>repo.jenkins-ci.org</id>
-            <username>${repo.login}</username>
-            <password>${repo.pwd}</password>
+            <!--
+                Read straight from the environment, so the credentials never
+                appear on a command line. They used to arrive as -Drepo.login /
+                -Drepo.pwd, which put them in the agent's process list.
+            -->
+            <username>${env.RELEASE_USERNAME}</username>
+            <password>${env.RELEASE_PASSWORD}</password>
         </server>
     </servers>
 

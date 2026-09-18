@@ -10,8 +10,20 @@ node() {
         // the workspace when the agent's default java is older.
         def hasJava21 = sh(script: 'java -version 2>&1 | grep -qE \'version "(2[1-9]|[3-9][0-9])\'', returnStatus: true) == 0
         if (!hasJava21) {
+            // Pinned and checksummed. This used to fetch whatever
+            // api.adoptium.net's "latest" endpoint returned and pipe it
+            // straight into tar, so whatever came back got to run as the
+            // release build -- the one build that signs and publishes
+            // artefacts. The checksum lives in git, where it is reviewed;
+            // fetching it from the same endpoint as the binary would prove
+            // nothing. Bump both lines together from
+            // https://api.adoptium.net/v3/assets/latest/21/hotspot
             sh '''
-                curl -sSL https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse -o /tmp/jdk21.tar.gz
+                set -eu
+                JDK_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz"
+                JDK_SHA256="ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+                curl -fsSL "$JDK_URL" -o /tmp/jdk21.tar.gz
+                echo "$JDK_SHA256  /tmp/jdk21.tar.gz" | sha256sum -c -
                 rm -rf "$WORKSPACE/.jdk21" && mkdir -p "$WORKSPACE/.jdk21"
                 tar xzf /tmp/jdk21.tar.gz -C "$WORKSPACE/.jdk21" --strip-components=1
                 rm -f /tmp/jdk21.tar.gz
@@ -30,7 +42,14 @@ node() {
     stage('Release') {
         withCredentials([usernamePassword(credentialsId: "user-nc-jenkins.io", usernameVariable: 'RELEASE_USERNAME', passwordVariable: 'RELEASE_PASSWORD')]) {
             sshagent(["ssh-nc-github"]) {
-                sh "./mvnw --show-version --settings release-settings.xml -Drepo.login=${env.RELEASE_USERNAME} -Drepo.pwd=${env.RELEASE_PASSWORD} release:prepare release:perform"
+                // Single quotes on purpose: a double-quoted string would
+                // interpolate the credentials into the command Groovy hands
+                // to the shell, putting them in the agent's process list and
+                // in the -x trace that Jenkins' sh step runs by default.
+                // withCredentials masks the console log, not either of those.
+                // release-settings.xml reads the two variables from the
+                // environment instead.
+                sh './mvnw --show-version --settings release-settings.xml release:prepare release:perform'
             }
         }
     }
