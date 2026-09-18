@@ -2,11 +2,11 @@
 
 Thank you for your interest in making [Deploy Dashboard Plugin](https://github.com/jenkinsci/deploy-dashboard-plugin) even better and more awesome. Your contributions are highly welcome.
 
-Plugin source code is hosted on [GitHub](https://github.com/jenkinsci/deploy-dashboard-plugin). New feature proposals and bug fix proposals should be submitted as [GitHub pull requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request). Your pull request will be evaluated by [ci.jenkins.io](https://ci.jenkins.io/job/Plugins/job/deploy-dashboard-plugin/).
+Plugin source code is hosted on [GitHub](https://github.com/jenkinsci/deploy-dashboard-plugin). New feature proposals and bug fix proposals should be submitted as [GitHub pull requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request). Your pull request will be evaluated by [GitHub Actions](../../actions): the test suite on Linux and Windows, an end-to-end run against a real Jenkins, and the Jenkins Security Scan.
 
 ## Development
 
-There is an official [Jenkins Plugin Development Guild](https://wiki.jenkins.io/display/JENKINS/Plugin+tutorial) by Jenkins. All the details you will find there.
+There is an official [Jenkins plugin development guide](https://www.jenkins.io/doc/developer/). All the details you will find there.
 
 In short, you have to be familiar with java (JDK 21 or 25 is required) and maven build tool.
 
@@ -28,8 +28,5 @@ It also fails on imports the Jenkins project has retired: `StaplerRequest`/`Stap
 
 ## Release (Only for Plugin's maintainers)
 
-Official documentation: [Performing a Plugin Release](https://jenkins.io/doc/developer/publishing/releasing/)
-
-There is `Jenkinsfile.release` file in the root directory which you can use as jenkins pipeline
-
-P.S. It usually takes time when the new version appears in the jenkins registry search.
+See [docs/RELEASE.md](docs/RELEASE.md). The instructions used to be written out
+in both places and had already begun to disagree.

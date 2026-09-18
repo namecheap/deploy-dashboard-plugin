@@ -38,7 +38,13 @@
       <email>vladlen.f@namecheap.com</email>
     </developer>
     <developer>
-      <id>vetal2409</id>
+      <!--
+        This entry carried id vetal2409, which belongs to Vitalii Sydorenko
+        above. Removed rather than replaced: the id is published on
+        plugins.jenkins.io, and there is nothing in this repository's history
+        to say what the right one is, so guessing would put a wrong identity in
+        front of users. Add it back when someone knows it.
+      -->
       <name>Yuriy Puchkov</name>
       <email>yuriy.puchkov@namecheap.com</email>
     </developer>
