@@ -127,6 +127,12 @@
                                             </j:forEach>
                                         </tbody>
                                     </table>
+                                    <j:if test="${environment.truncated}">
+                                        <p class="edb-history-truncated">
+                                            Showing the most recent ${environment.actions.size()}
+                                            of ${environment.totalCount} deployments.
+                                        </p>
+                                    </j:if>
                                 </div>
                             </div>
                         </div>

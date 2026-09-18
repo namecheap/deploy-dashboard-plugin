@@ -8,14 +8,19 @@ import hudson.model.ItemGroup;
 import hudson.model.Job;
 import hudson.model.ListView;
 import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.model.TopLevelItem;
 import hudson.model.ViewDescriptor;
+import hudson.model.listeners.ItemListener;
+import hudson.model.listeners.RunListener;
 import hudson.util.FormValidation;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -57,7 +62,142 @@ public class DeploymentView extends ListView {
         return Stream.concat(own, nested);
     }
 
+    /**
+     * How many deployments per environment the release-history modal carries.
+     *
+     * <p>It used to render every deployment ever made, for every environment of
+     * every job, into hidden divs on the dashboard -- so the page grew without
+     * bound and a controller with a long history served megabytes of DOM to
+     * every viewer. The modal is a recent-history panel; when it is cut short
+     * it says so rather than quietly showing less than it used to.
+     */
+    static final int HISTORY_LIMIT = 50;
+
+    /**
+     * Keyed by item full name, shared by every view showing that item.
+     *
+     * <p>Entries are validated against {@link #fingerprint}, not trusted for a
+     * period of time: a stale release on a deployment dashboard is worse than a
+     * slow one.
+     */
+    private static final Map<String, Snapshot> CACHE = new ConcurrentHashMap<>();
+
+    private static final class Snapshot {
+        private final long fingerprint;
+        private final List<Unit.Environment> environments;
+
+        Snapshot(long fingerprint, List<Unit.Environment> environments) {
+            this.fingerprint = fingerprint;
+            this.environments = environments;
+        }
+    }
+
+    /**
+     * Cheap summary of everything that could change what the dashboard shows.
+     *
+     * <p>Reads only each job's next-build number and its last completed build,
+     * so it costs one run load per job at most -- against the full scan it
+     * guards, which loads every build.xml of every job on every render.
+     *
+     * <p>The next-build number moves when a build starts, the last completed
+     * number when one finishes, and the job count when jobs come and go. A
+     * deployment is recorded during a build, so finishing is the event that
+     * matters and the second term is what catches it.
+     *
+     * <p>The job's object identity is in there because a reload rebuilds every
+     * item from disk with the same numbers: the cached entry would validate,
+     * while holding runs that are no longer the ones Jenkins is serving. A
+     * reload does not fire {@link ItemListener#onLoaded()}, which is how that
+     * was found, so this does not depend on being told.
+     */
+    private static long fingerprint(Item item) {
+        long acc = 17;
+        for (Job<?, ?> job : jobsOf(item).collect(Collectors.toList())) {
+            Run<?, ?> lastCompleted = job.getLastCompletedBuild();
+            acc = acc * 31 + job.getFullName().hashCode();
+            acc = acc * 31 + System.identityHashCode(job);
+            acc = acc * 31 + job.getNextBuildNumber();
+            acc = acc * 31 + (lastCompleted == null ? -1 : lastCompleted.getNumber());
+        }
+        return acc;
+    }
+
+    private static Stream<Job<?, ?>> jobsOf(Item item) {
+        Stream<Job<?, ?>> own = item instanceof Job ? Stream.of((Job<?, ?>) item) : Stream.empty();
+        Stream<Job<?, ?>> nested = item instanceof ItemGroup
+                ? ((ItemGroup<?>) item).getItems().stream().flatMap(DeploymentView::jobsOf)
+                : Stream.empty();
+        return Stream.concat(own, nested);
+    }
+
     private List<Unit.Environment> getEnvs(TopLevelItem item) {
+        long fingerprint = fingerprint(item);
+        Snapshot cached = CACHE.get(item.getFullName());
+        if (cached != null && cached.fingerprint == fingerprint) {
+            return cached.environments;
+        }
+        List<Unit.Environment> environments = computeEnvs(item);
+        CACHE.put(item.getFullName(), new Snapshot(fingerprint, environments));
+        return environments;
+    }
+
+    /**
+     * Deleting a build cannot move any of the numbers {@link #fingerprint}
+     * reads, so it is the one change that has to announce itself.
+     */
+    @Extension
+    public static class CacheInvalidator extends RunListener<Run<?, ?>> {
+        @Override
+        public void onDeleted(Run<?, ?> run) {
+            CACHE.clear();
+        }
+
+        @Override
+        public void onFinalized(Run<?, ?> run) {
+            // Belt and braces: onFinalized runs after the actions are attached
+            // and saved, so even if a job's numbers somehow read the same, the
+            // next render recomputes.
+            CACHE.remove(run.getParent().getFullName());
+            for (ItemGroup<?> parent = run.getParent().getParent();
+                    parent instanceof Item;
+                    parent = ((Item) parent).getParent()) {
+                CACHE.remove(((Item) parent).getFullName());
+            }
+        }
+
+        @Override
+        public void onStarted(Run<?, ?> run, TaskListener listener) {
+            // No-op: a started build has recorded nothing yet, and the
+            // fingerprint already moved with the next-build number.
+        }
+    }
+
+    /**
+     * Renaming or deleting an item strands the name the cache is keyed by.
+     * Rare, so it just drops everything.
+     *
+     * <p>{@code onLoaded} does not fire on {@code Jenkins.reload()}; that case
+     * is handled by the job identity in {@link #fingerprint} rather than here.
+     */
+    @Extension
+    public static class CacheReset extends ItemListener {
+        @Override
+        public void onLoaded() {
+            CACHE.clear();
+        }
+
+        @Override
+        public void onDeleted(Item item) {
+            CACHE.clear();
+        }
+
+        @Override
+        public void onLocationChanged(Item item, String oldFullName, String newFullName) {
+            CACHE.clear();
+        }
+    }
+
+    private List<Unit.Environment> computeEnvs(TopLevelItem item) {
         return runsOf(item)
                 // getActions, not getAction: a build that deploys to several
                 // environments records one action per deployment, and the
@@ -119,6 +259,7 @@ public class DeploymentView extends ListView {
 
             private final String name;
             private final List<DeploymentAction> actions;
+            private final int totalCount;
 
             /**
              * Sorts on the way in rather than trusting the caller's order.
@@ -134,9 +275,11 @@ public class DeploymentView extends ListView {
              */
             public Environment(String name, List<DeploymentAction> actions) {
                 this.name = name;
+                this.totalCount = actions.size();
                 List<DeploymentAction> sorted = new ArrayList<>(actions);
                 sorted.sort(NEWEST_FIRST);
-                this.actions = Collections.unmodifiableList(sorted);
+                this.actions = Collections.unmodifiableList(
+                        new ArrayList<>(sorted.subList(0, Math.min(sorted.size(), HISTORY_LIMIT))));
             }
 
             public String getName() {
@@ -145,6 +288,15 @@ public class DeploymentView extends ListView {
 
             public List<DeploymentAction> getActions() {
                 return actions;
+            }
+
+            /** Deployments to this environment in total, before the history limit. */
+            public int getTotalCount() {
+                return totalCount;
+            }
+
+            public boolean isTruncated() {
+                return totalCount > actions.size();
             }
 
             public DeploymentAction getCurrentAction() {
