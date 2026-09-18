@@ -3,10 +3,12 @@
 # Built rather than bind-mounted on purpose: `jenkins-plugin-cli` runs as the
 # `jenkins` user and cannot write into a host-owned mount, and the ref directory
 # has to be readable by that user for Jenkins to seed JENKINS_HOME from it.
-# Overridable so the compatibility workflow can run the same e2e against the
-# weekly line: docker build --build-arg JENKINS_IMAGE=jenkins/jenkins:latest-jdk21
-ARG JENKINS_IMAGE=jenkins/jenkins:lts-jdk21
-FROM ${JENKINS_IMAGE}
+# The tag is written out in full, and deliberately not behind an ARG.
+# Dependabot's Dockerfile parser matches a literal image:tag on the FROM line
+# and has no handling for ${VARIABLE}, so an ARG-indirected base image is
+# invisible to it and would never be bumped. The compatibility workflow tests
+# the weekly line by rewriting this line, and checks that the rewrite took.
+FROM jenkins/jenkins:2.568.3-jdk21
 
 # The plugin's own dependencies, resolved from the update centre exactly as they
 # would be for a real installation. Nothing is pinned: the point of this job is
