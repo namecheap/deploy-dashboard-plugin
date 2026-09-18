@@ -30,6 +30,33 @@
         <relativePath />
     </parent>
 
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                        The parent sets reuseForks=false, so every test class
+                        already pays for a fresh JVM and a fresh Jenkins. With
+                        the default forkCount of 1 those starts were serial,
+                        and starting Jenkins, rather than running assertions,
+                        is most of what this suite does.
+
+                        Half the cores rather than one fork per core. On a
+                        4-vCPU GitHub runner, 1C oversubscribes: measured on
+                        CI with a warm cache, the linux leg went from 72s to
+                        88s at 1C while windows went from 128s to 100s, since
+                        process startup dominates there and compute does here.
+                        0.5C is two forks on that hardware, which is where the
+                        local numbers also stopped paying for themselves
+                        (53s at 1, 38s at 2, 30s at 4 on ten cores).
+                    -->
+                    <forkCount>0.5C</forkCount>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
