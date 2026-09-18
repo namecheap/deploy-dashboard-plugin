@@ -18,7 +18,7 @@
             <st:include page="viewTabs.jelly" it="${it.owner.viewsTabBar}"/>
             <j:set var="units" value="${it.getUnits(it.items)}"/>
             <div class="pane-frame">
-                <table id="projectstatus" class="pane bigtable stripped-odd">
+                <table class="pane bigtable stripped-odd">
                     <tbody>
                         <tr class="header">
                             <th>
@@ -49,7 +49,7 @@
                         </tr>
                         <j:forEach var="unit" indexVar="i" items="${units}">
                             <j:forEach var="environment" indexVar="j" items="${unit.getEnvironments()}">
-                                <tr id="job_build">
+                                <tr>
                                     <td>
                                         <j:if test="${j == 0}">
                                             <a href="${unit.getJob().getAbsoluteUrl()}" style="margin-left: .5em">${unit.getJob().name}</a>
@@ -90,7 +90,7 @@
                             </div>
                             <div class="modal-body">
                                 <div class="pane-frame">
-                                    <table id="projectstatus" class="pane bigtable stripped-odd">
+                                    <table class="pane bigtable stripped-odd">
                                         <tbody>
                                             <tr class="header">
                                                 <th>
@@ -110,7 +110,7 @@
                                                 </th>
                                             </tr>
                                             <j:forEach var="deployment" items="${environment.getActions()}">
-                                                <tr id="job_build">
+                                                <tr>
                                                     <td>
                                                         <a href="${deployment.run.getAbsoluteUrl()}">
                                                             ${deployment.buildNumber}
