@@ -16,6 +16,16 @@ In short, you have to be familiar with java (JDK 21 or 25 is required) and maven
 
 This command will build the plugin. The `hpi` file you can find in the `target` folder.
 
+The build enforces the standard jenkinsci formatting, so if it fails with
+`The following files had format violations`, run:
+
+```
+./mvnw spotless:apply
+```
+
+It also fails on imports the Jenkins project has retired: `StaplerRequest`/`StaplerResponse`
+(use the `2` variants), JUnit 4, and `org.apache.commons.lang` (use `lang3`).
+
 ## Release (Only for Plugin's maintainers)
 
 Official documentation: [Performing a Plugin Release](https://jenkins.io/doc/developer/publishing/releasing/)

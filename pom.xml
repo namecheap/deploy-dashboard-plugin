@@ -75,6 +75,19 @@
             POM: ./mvnw verify -Djenkins.version=<core> -Djenkins.bom.version=<bom>
         -->
     <jenkins.bom.version>7046.v43536164769c</jenkins.bom.version>
+
+    <!--
+      The gates the jenkinsci archetype turns on for every new plugin, all of
+      which the parent POM ships switched off. The code already satisfies every
+      one of them; the point is that it keeps doing so when someone pastes in an
+      older snippet, rather than finding out when an API is finally removed.
+    -->
+    <ban-commons-lang-2.skip>false</ban-commons-lang-2.skip>
+    <ban-deprecated-stapler.skip>false</ban-deprecated-stapler.skip>
+    <ban-junit4-imports.skip>false</ban-junit4-imports.skip>
+    <banObsoleteDependencyOverrides.skip>false</banObsoleteDependencyOverrides.skip>
+    <hpi.strictBundledArtifacts>true</hpi.strictBundledArtifacts>
+    <spotless.check.skip>false</spotless.check.skip>
   </properties>
 
   <dependencyManagement>
