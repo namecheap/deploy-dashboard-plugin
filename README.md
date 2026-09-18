@@ -57,8 +57,12 @@ node {
 
 
 ## Add action button feature
-There is one more useful feature which this plugin can do. You can add the additional buttons to the build sidebar.
+There is one more useful feature which this plugin can do. You can add additional links to a build, pointing wherever
+you like -- most usefully at the job that deploys what was just built.
 This feature doesn't have any binding with Deploy Dashboard feature, it's just comfortable to use them together.
+
+Where those links appear depends on the Jenkins version; see
+[Notes on modern Jenkins](#notes-on-modern-jenkins-plugin-020) below.
 
 #### Pipeline | Add button
 E.g.: We are building an app and add the the button which will link to deployment job
@@ -68,7 +72,7 @@ node {
         String builtVersion = "v2.7.5"
         // Build app with ${builtVersion} version
 
-        //Add buttons to the left sidebar
+        // Add links to the build
         buildAddUrl(title: 'Deploy to DEV', url: "/job/app-deploy/parambuild/?env=dev&version=${builtVersion}")
         buildAddUrl(title: 'Deploy to PROD', url: "/job/app-deploy/parambuild/?env=prod&version=${builtVersion}")
     }
