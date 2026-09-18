@@ -1,18 +1,26 @@
 package org.jenkinsci.plugins.environmentdashboard;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import hudson.model.FreeStyleProject;
 import java.util.List;
 import java.util.stream.Collectors;
+import jenkins.branch.BranchSource;
+import jenkins.scm.impl.mock.MockSCMController;
+import jenkins.scm.impl.mock.MockSCMDiscoverBranches;
+import jenkins.scm.impl.mock.MockSCMSource;
 import org.htmlunit.html.HtmlPage;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
+import org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject;
 import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.MockFolder;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
 @WithJenkins
@@ -105,6 +113,82 @@ class DeploymentViewTest {
             HtmlPage page = wc.goTo("view/legacy-view/");
             assertEquals(200, page.getWebResponse().getStatusCode());
             assertTrue(page.getWebResponse().getContentAsString().contains("1.2.3"));
+        }
+    }
+
+    @Test
+    void aFreestyleDeploymentIsShown(JenkinsRule j) throws Exception {
+        // The step's descriptor is applicable to every project type, so a
+        // freestyle job could record a deployment -- and the view, which only
+        // knew two Pipeline types, then dropped the job entirely. Selected in
+        // the view's configuration, never rendered, and nothing said why.
+        FreeStyleProject job = j.createFreeStyleProject("legacy-app");
+        job.getBuildersList().add(new Deployment("production", "4.5.6"));
+        j.buildAndAssertSuccess(job);
+
+        DeploymentView view = new DeploymentView("freestyle-view");
+        j.jenkins.addView(view);
+        view.setIncludeRegex("legacy-app");
+        view.save();
+
+        List<DeploymentView.Unit> units = view.getUnits(view.getItems());
+        assertEquals(1, units.size(), "a freestyle job that deploys belongs on the dashboard");
+        assertEquals("production", units.get(0).getEnvironments().get(0).getName());
+        assertEquals("4.5.6", units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
+    }
+
+    @Test
+    void aDeploymentFromAJobInsideAFolderIsShown(JenkinsRule j) throws Exception {
+        // The same generic walk that reaches a multibranch project's branches
+        // reaches anything else that holds jobs.
+        MockFolder folder = j.createFolder("team");
+        FreeStyleProject job = folder.createProject(FreeStyleProject.class, "nested-app");
+        job.getBuildersList().add(new Deployment("staging", "7.0.0"));
+        j.buildAndAssertSuccess(job);
+
+        DeploymentView view = new DeploymentView("folder-view");
+        j.jenkins.addView(view);
+        view.setIncludeRegex("team");
+        view.save();
+
+        List<DeploymentView.Unit> units = view.getUnits(view.getItems());
+        assertEquals(1, units.size(), "a folder holding a job that deploys belongs on the dashboard");
+        assertEquals("staging", units.get(0).getEnvironments().get(0).getName());
+        assertEquals("7.0.0", units.get(0).getEnvironments().get(0).getCurrentAction().getBuildNumber());
+    }
+
+    @Test
+    void aMultibranchProjectStillWorksThroughTheGenericWalk(JenkinsRule j) throws Exception {
+        // The view no longer names WorkflowMultiBranchProject, and the plugin no
+        // longer depends on it, so the case it used to special-case is asserted
+        // against a real one built from an SCM rather than assumed.
+        try (MockSCMController scm = MockSCMController.create()) {
+            scm.createRepository("app");
+            scm.addFile("app", "master", "pipeline",
+                    "Jenkinsfile",
+                    "node { addDeployToDashboard(env: 'production', buildNumber: '1.0.0') }".getBytes(UTF_8));
+            scm.cloneBranch("app", "master", "hotfix");
+            scm.addFile("app", "hotfix", "pipeline",
+                    "Jenkinsfile",
+                    "node { addDeployToDashboard(env: 'production', buildNumber: '1.0.1') }".getBytes(UTF_8));
+
+            WorkflowMultiBranchProject mp = j.createProject(WorkflowMultiBranchProject.class, "multi-app");
+            mp.getSourcesList().add(new BranchSource(new MockSCMSource(scm, "app", new MockSCMDiscoverBranches())));
+            mp.scheduleBuild2(0).getFuture().get();
+            j.waitUntilNoActivity();
+            assertEquals(2, mp.getItems().size(), "both branches must have been indexed and built");
+
+            DeploymentView view = new DeploymentView("multi-view");
+            j.jenkins.addView(view);
+            view.setIncludeRegex("multi-app");
+            view.save();
+
+            List<DeploymentView.Unit> units = view.getUnits(view.getItems());
+            assertEquals(1, units.size());
+            DeploymentView.Unit.Environment production = units.get(0).getEnvironments().get(0);
+            assertEquals("production", production.getName());
+            assertEquals(2, production.getActions().size(),
+                    "both branches deployed to production, so both belong in the history");
         }
     }
 

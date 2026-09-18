@@ -3,13 +3,15 @@ package org.jenkinsci.plugins.environmentdashboard;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.Util;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
 import hudson.model.Job;
 import hudson.model.ListView;
+import hudson.model.Run;
 import hudson.model.TopLevelItem;
 import hudson.model.ViewDescriptor;
 import hudson.util.FormValidation;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -17,11 +19,9 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.sf.json.JSONObject;
 import org.jenkinsci.plugins.environmentdashboard.Deployment.DeploymentAction;
-import org.jenkinsci.plugins.workflow.job.WorkflowJob;
-import org.jenkinsci.plugins.workflow.job.WorkflowRun;
-import org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest2;
@@ -32,21 +32,33 @@ public class DeploymentView extends ListView {
         super(name);
     }
 
-    private List<Unit.Environment> getEnvs(TopLevelItem item) {
-        List<WorkflowRun> runs = Collections.emptyList();
-        if (item instanceof WorkflowMultiBranchProject) {
-            runs = ((WorkflowMultiBranchProject) item)
-                    .getItems()
-                    .stream()
-                    .map(Job::getBuilds)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList());
-        } else if (item instanceof WorkflowJob) {
-            runs = ((WorkflowJob) item).getBuilds();
-        }
+    /**
+     * Every build underneath an item, whatever kind of item it is.
+     *
+     * <p>This used to name two Pipeline types outright, and anything else --
+     * freestyle, matrix, a job inside a folder -- produced no runs at all, so
+     * the job was quietly dropped from the view. The build step is a
+     * {@link hudson.tasks.Builder} whose descriptor is applicable to every
+     * project type, so those deployments were recorded and then never shown,
+     * with nothing to say why.
+     *
+     * <p>A multibranch project is just an {@link ItemGroup} of jobs, so the
+     * generic walk covers it without the view having to know the type. An item
+     * that is both -- a matrix project, whose configurations run their own
+     * builds -- contributes from both sides.
+     */
+    private static Stream<Run<?, ?>> runsOf(Item item) {
+        Stream<Run<?, ?>> own = item instanceof Job
+                ? ((Job<?, ?>) item).getBuilds().stream().map(run -> (Run<?, ?>) run)
+                : Stream.empty();
+        Stream<Run<?, ?>> nested = item instanceof ItemGroup
+                ? ((ItemGroup<?>) item).getItems().stream().flatMap(DeploymentView::runsOf)
+                : Stream.empty();
+        return Stream.concat(own, nested);
+    }
 
-        return runs
-                .stream()
+    private List<Unit.Environment> getEnvs(TopLevelItem item) {
+        return runsOf(item)
                 // getActions, not getAction: a build that deploys to several
                 // environments records one action per deployment, and the
                 // singular form returns only the first -- so every environment

@@ -41,13 +41,29 @@
             <groupId>io.jenkins.plugins</groupId>
             <artifactId>ionicons-api</artifactId>
         </dependency>
+        <!--
+            workflow-multibranch was a compile dependency only because the view
+            named WorkflowMultiBranchProject to decide how to find builds. It
+            walks ItemGroups generically now, so every install no longer has to
+            carry multibranch and its transitive Pipeline plugins to render a
+            dashboard of freestyle jobs. It stays on the test classpath, where
+            the multibranch case is still asserted.
+        -->
         <dependency>
             <groupId>org.jenkins-ci.plugins.workflow</groupId>
             <artifactId>workflow-multibranch</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins.workflow</groupId>
             <artifactId>workflow-cps</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MockSCMController, so the multibranch case can be built for real. -->
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>scm-api</artifactId>
+            <classifier>tests</classifier>
             <scope>test</scope>
         </dependency>
         <dependency>
