@@ -19,6 +19,7 @@ import jenkins.tasks.SimpleBuildStep;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.verb.POST;
 
 public class Deployment extends Builder implements SimpleBuildStep {
 
@@ -91,10 +92,17 @@ public class Deployment extends Builder implements SimpleBuildStep {
             return true;
         }
 
+        // Pure string checks: no state change, no I/O, so no permission is required
+        // beyond the READ the form itself needs. POST because form validation is
+        // submitted that way and it keeps the endpoint out of link-based CSRF.
+        @POST
+        // lgtm[jenkins/no-permission-check]
         public FormValidation doCheckEnv(@QueryParameter String value) {
             return Util.fixEmptyAndTrim(value) == null ? FormValidation.error(REQUIRED_ENV) : FormValidation.ok();
         }
 
+        @POST
+        // lgtm[jenkins/no-permission-check]
         public FormValidation doCheckBuildNumber(@QueryParameter String value) {
             return Util.fixEmptyAndTrim(value) == null
                     ? FormValidation.error(REQUIRED_BUILD_NUMBER)
