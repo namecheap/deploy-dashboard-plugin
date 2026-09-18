@@ -66,7 +66,7 @@ public class Deployment extends Builder implements SimpleBuildStep {
 
     public static final class DeploymentAction implements RunAction2 {
 
-        private Run run;
+        private Run<?, ?> run;
         private String env;
         private String buildNumber;
 
@@ -102,7 +102,7 @@ public class Deployment extends Builder implements SimpleBuildStep {
             return env;
         }
 
-        public Run getRun() {
+        public Run<?, ?> getRun() {
             return run;
         }
 

@@ -8,10 +8,12 @@ import hudson.model.ListView;
 import hudson.model.TopLevelItem;
 import hudson.model.ViewDescriptor;
 import hudson.util.FormValidation;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -45,9 +47,20 @@ public class DeploymentView extends ListView {
 
         return runs
                 .stream()
-                .map(run -> run.getAction(DeploymentAction.class))
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(DeploymentAction::getEnv))
+                // getActions, not getAction: a build that deploys to several
+                // environments records one action per deployment, and the
+                // singular form returns only the first -- so every environment
+                // after the first silently vanished from the dashboard.
+                .flatMap(run -> run.getActions(DeploymentAction.class).stream())
+                // A RunAction2 always has its run set through onAttached/onLoad,
+                // but the whole view dereferences it, so a broken record is
+                // dropped here rather than breaking the page for every job.
+                .filter(action -> action.getRun() != null)
+                // TreeMap, not the default HashMap: the environment rows are
+                // rendered in map order, and hash order is neither stable across
+                // restarts nor meaningful to a reader.
+                .collect(Collectors.groupingBy(
+                        DeploymentAction::getEnv, TreeMap::new, Collectors.toList()))
                 .entrySet()
                 .stream()
                 .map(e -> new Unit.Environment(e.getKey(), e.getValue()))
@@ -80,12 +93,32 @@ public class DeploymentView extends ListView {
         }
 
         public static class Environment {
+            /** Most recently started deployment first, so `get(0)` is the current one. */
+            private static final Comparator<DeploymentAction> NEWEST_FIRST = Comparator.comparingLong(
+                            (DeploymentAction a) -> a.getRun().getStartTimeInMillis())
+                    .thenComparingInt(a -> a.getRun().getNumber())
+                    .reversed();
+
             private final String name;
             private final List<DeploymentAction> actions;
 
+            /**
+             * Sorts on the way in rather than trusting the caller's order.
+             *
+             * {@link #getCurrentAction()} promises the deployment that is live
+             * now, and the order it used to rely on did not carry that meaning:
+             * for a multibranch project the runs arrive branch by branch, so
+             * whichever branch happened to sort first supplied the "current"
+             * release for every environment -- a dashboard confidently showing
+             * a stale version whenever the newest deployment came from a
+             * later-sorting branch. Ordering here makes the promise the class's
+             * own rather than a caller's responsibility.
+             */
             public Environment(String name, List<DeploymentAction> actions) {
                 this.name = name;
-                this.actions = actions;
+                List<DeploymentAction> sorted = new ArrayList<>(actions);
+                sorted.sort(NEWEST_FIRST);
+                this.actions = Collections.unmodifiableList(sorted);
             }
 
             public String getName() {
