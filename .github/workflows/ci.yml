@@ -52,6 +52,8 @@ jobs:
       - name: Build and test
         run: ./mvnw -B -ntp verify
 
+      # Kept for humans to download a build of a pull request. The e2e job
+      # packages its own copy so it does not have to wait for this matrix.
       - name: Upload the plugin
         if: matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -77,41 +79,73 @@ jobs:
   # from the update centre, or the Jelly views as an installed plugin renders
   # them. Everything this job asserts is a thing a user would notice and the
   # unit tests would not.
+  #
+  # It packages the plugin itself rather than waiting for the test job's
+  # artifact. `needs: test` waited for the whole matrix, so the slowest leg
+  # (windows) was on this job's critical path even though it produces nothing
+  # this job uses -- roughly a minute of wall clock spent waiting. Packaging
+  # here costs about twenty seconds against a warm Maven cache and runs in
+  # parallel with the tests instead of after them.
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (real Jenkins)
-    needs: test
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download the plugin built by the test job
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
-          name: hpi
-          path: dist
+          java-version: 21
+          distribution: temurin
+          cache: maven
 
-      - name: Build a stock Jenkins with the plugin installed
+      - name: Package the plugin
         run: |
           set -euo pipefail
-          cp dist/*.hpi .github/e2e/deploy-dashboard.hpi
-          docker build -t dd-e2e .github/e2e
+          ./mvnw -B -ntp -DskipTests package
+          cp target/*.hpi .github/e2e/deploy-dashboard.hpi
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # The image's expensive layer is jenkins-plugin-cli resolving the
+      # plugin's dependencies from the update centre, which is the same work
+      # every run until the Dockerfile or the base image changes. Cached
+      # through the Actions cache so it is done once rather than each time.
+      #
+      # This does mean the resolved plugin set can be up to a week old (the
+      # Actions cache evicts unused entries) instead of resolved fresh every
+      # run. Moving the jenkins/jenkins:lts-jdk21 tag still invalidates it, so
+      # a new LTS is picked up immediately; only plugin releases within one
+      # base image can lag.
+      - name: Build a stock Jenkins with the plugin installed
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .github/e2e
+          load: true
+          tags: dd-e2e
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Start it
         run: docker run -d --name jenkins -p 8080:8080 dd-e2e
 
+      # Polled every two seconds rather than five: Jenkins answers after about
+      # fifteen, so the coarser interval spent several seconds of every run
+      # waiting on a container that was already up.
       - name: Wait for Jenkins to come up
         run: |
           set -euo pipefail
-          for i in $(seq 1 60); do
+          for i in $(seq 1 150); do
             if curl -fsS http://localhost:8080/login >/dev/null 2>&1; then
-              echo "Jenkins answered after $((i * 5))s"
+              echo "Jenkins answered after $((i * 2))s"
               # The seed script runs during startup; give it a moment to finish
               # creating the job and the view before anything asks for them.
               sleep 5
               exit 0
             fi
-            sleep 5
+            sleep 2
           done
           echo "::error::Jenkins did not start within 5 minutes"
           docker logs jenkins
