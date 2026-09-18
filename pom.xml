@@ -30,6 +30,45 @@
         <relativePath />
     </parent>
 
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                        The parent sets reuseForks=false, so every test class
+                        already pays for a fresh JVM and a fresh Jenkins. With
+                        the default forkCount of 1 those starts were serial,
+                        and starting Jenkins, rather than running assertions,
+                        is most of what this suite does.
+
+                        Measured on CI, warm cache only, "Build and test":
+
+                          linux    1 fork: 72 83 85 85 97   (median 85s)
+                                   forked: 86, 88           (no change)
+                          windows  1 fork: 110 120 121 128
+                                           131 134 149 157  (median 130s)
+                                   forked: 100, 103         (under the best
+                                                             of the eight)
+
+                        So this buys nothing on linux and about 25 seconds on
+                        windows, which is the leg that sets the wall clock.
+                        Process startup dominates there while linux is already
+                        compute-bound, which is the asymmetry being exploited.
+
+                        0.5C rather than 1C: on a 4-vCPU runner they measured
+                        the same (86 vs 88, 103 vs 100), so take the setting
+                        that leaves headroom. Do not read the local numbers
+                        (53s at 1, 38s at 2, 30s at 4 on ten cores) as a guide
+                        to CI; a laptop has more cores than a runner and they
+                        do not transfer.
+                    -->
+                    <forkCount>0.5C</forkCount>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
