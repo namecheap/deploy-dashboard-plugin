@@ -104,7 +104,21 @@ public class Deployment extends Builder implements SimpleBuildStep {
 
     public static final class DeploymentAction implements RunAction2 {
 
-        private Run<?, ?> run;
+        /**
+         * Injected by {@link #onAttached}/{@link #onLoad}, never persisted.
+         *
+         * <p>Without {@code transient} XStream wrote the owner into the run's
+         * own build.xml as a positional back-reference:
+         *
+         * <pre>{@code <run class="flow-build" reference="../../.."/>}</pre>
+         *
+         * <p>which is not state this action owns, and which anything that moves
+         * the action inside {@code <actions>} turns into a dangling pointer --
+         * XStream then reports a conversion error and drops the action, so the
+         * deployment disappears from the dashboard.
+         */
+        private transient Run<?, ?> run;
+
         private String env;
         private String buildNumber;
 
