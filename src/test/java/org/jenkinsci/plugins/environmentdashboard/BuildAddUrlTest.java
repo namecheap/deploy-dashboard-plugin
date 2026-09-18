@@ -25,8 +25,8 @@ class BuildAddUrlTest {
 
     private static WorkflowRun runWithLink(JenkinsRule j, String url) throws Exception {
         WorkflowJob job = j.createProject(WorkflowJob.class, "app-" + Math.abs(url.hashCode()));
-        job.setDefinition(new CpsFlowDefinition(
-                "node { buildAddUrl(title: 'Deploy to DEV', url: '" + url + "') }", true));
+        job.setDefinition(
+                new CpsFlowDefinition("node { buildAddUrl(title: 'Deploy to DEV', url: '" + url + "') }", true));
         return j.buildAndAssertSuccess(job);
     }
 
@@ -52,8 +52,7 @@ class BuildAddUrlTest {
             assertEquals(302, response.getStatusCode(), "the action must redirect to the configured URL");
             String location = response.getResponseHeaderValue("Location");
             assertNotNull(location);
-            assertTrue(location.endsWith(TARGET),
-                    "redirect must preserve the full query string, got: " + location);
+            assertTrue(location.endsWith(TARGET), "redirect must preserve the full query string, got: " + location);
         }
     }
 
@@ -93,7 +92,8 @@ class BuildAddUrlTest {
         Detail detail = details.get(0);
         assertEquals("Deploy to DEV", detail.getDisplayName());
         assertNotNull(detail.getIconClassName(), "details without an icon are not rendered by the details bar");
-        assertTrue(detail.getLink().endsWith("/" + run.getUrl() + action.getUrlName()),
+        assertTrue(
+                detail.getLink().endsWith("/" + run.getUrl() + action.getUrlName()),
                 "detail must link to the redirecting action, got: " + detail.getLink());
     }
 }

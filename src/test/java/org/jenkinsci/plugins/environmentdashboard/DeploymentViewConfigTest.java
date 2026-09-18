@@ -33,7 +33,9 @@ class DeploymentViewConfigTest {
             j.submit(form);
         }
 
-        assertEquals(List.of(j.jenkins.getItem("alpha")), view.getItems(),
+        assertEquals(
+                List.of(j.jenkins.getItem("alpha")),
+                view.getItems(),
                 "the job ticked in the form must be the job the view shows");
     }
 

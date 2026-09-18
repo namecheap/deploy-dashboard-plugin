@@ -48,8 +48,10 @@ class DeploymentViewCacheTest {
 
         DeploymentView view = viewOver(j, "cache-view", "cached");
 
-        List<DeploymentView.Unit.Environment> first = view.getUnits(view.getItems()).get(0).getEnvironments();
-        List<DeploymentView.Unit.Environment> second = view.getUnits(view.getItems()).get(0).getEnvironments();
+        List<DeploymentView.Unit.Environment> first =
+                view.getUnits(view.getItems()).get(0).getEnvironments();
+        List<DeploymentView.Unit.Environment> second =
+                view.getUnits(view.getItems()).get(0).getEnvironments();
         assertSame(first, second, "nothing changed, so the second render must reuse the first result");
     }
 
@@ -69,7 +71,9 @@ class DeploymentViewCacheTest {
         j.buildAndAssertSuccess(job);
 
         DeploymentView.Unit.Environment env = onlyEnvironment(view);
-        assertEquals("2.0.0", env.getCurrentAction().getBuildNumber(),
+        assertEquals(
+                "2.0.0",
+                env.getCurrentAction().getBuildNumber(),
                 "the release that just deployed must be the one shown");
         assertEquals(2, env.getActions().size());
     }
@@ -87,7 +91,9 @@ class DeploymentViewCacheTest {
         job.getBuildersList().add(new Deployment("production", "1.0.0"));
         j.buildAndAssertSuccess(job);
 
-        assertEquals(2, view.getUnits(view.getItems()).get(0).getEnvironments().size(),
+        assertEquals(
+                2,
+                view.getUnits(view.getItems()).get(0).getEnvironments().size(),
                 "an environment deployed to for the first time must show up at once");
     }
 
@@ -105,8 +111,7 @@ class DeploymentViewCacheTest {
 
         first.delete();
 
-        assertEquals(1, onlyEnvironment(view).getActions().size(),
-                "a deleted build must leave the dashboard");
+        assertEquals(1, onlyEnvironment(view).getActions().size(), "a deleted build must leave the dashboard");
     }
 
     @Test
@@ -116,15 +121,15 @@ class DeploymentViewCacheTest {
         j.buildAndAssertSuccess(job);
 
         DeploymentView view = viewOver(j, "reload-view", "reloaded");
-        List<DeploymentView.Unit.Environment> before = view.getUnits(view.getItems()).get(0).getEnvironments();
+        List<DeploymentView.Unit.Environment> before =
+                view.getUnits(view.getItems()).get(0).getEnvironments();
 
         j.jenkins.reload();
 
         DeploymentView reloadedView = (DeploymentView) j.jenkins.getView("reload-view");
         assertNotNull(reloadedView);
-        List<DeploymentView.Unit.Environment> after = reloadedView.getUnits(reloadedView.getItems())
-                .get(0)
-                .getEnvironments();
+        List<DeploymentView.Unit.Environment> after =
+                reloadedView.getUnits(reloadedView.getItems()).get(0).getEnvironments();
         assertNotSame(before, after, "a reload can change anything on disk, so nothing may survive it");
         assertEquals("1.0.0", after.get(0).getCurrentAction().getBuildNumber());
     }
@@ -142,8 +147,7 @@ class DeploymentViewCacheTest {
             overLimit.add(action);
         }
         DeploymentView.Unit.Environment capped = new DeploymentView.Unit.Environment("production", overLimit);
-        assertEquals(DeploymentView.HISTORY_LIMIT, capped.getActions().size(),
-                "the modal must not grow without bound");
+        assertEquals(DeploymentView.HISTORY_LIMIT, capped.getActions().size(), "the modal must not grow without bound");
         assertEquals(DeploymentView.HISTORY_LIMIT + 5, capped.getTotalCount());
         assertTrue(capped.isTruncated(), "a shortened history has to admit it");
 

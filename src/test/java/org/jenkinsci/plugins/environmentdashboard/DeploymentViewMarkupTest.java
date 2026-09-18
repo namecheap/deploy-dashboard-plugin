@@ -68,7 +68,8 @@ class DeploymentViewMarkupTest {
 
         for (Object node : page.getByXPath("//a[@class='edb-popup-toggle']")) {
             String target = ((DomElement) node).getAttribute("data-popup-id");
-            assertTrue(html.contains("id=\"" + target + "\""),
+            assertTrue(
+                    html.contains("id=\"" + target + "\""),
                     "the toggle points at " + target + ", which must exist exactly once");
             assertEquals(1, page.getByXPath("//*[@id='" + target + "']").size());
         }

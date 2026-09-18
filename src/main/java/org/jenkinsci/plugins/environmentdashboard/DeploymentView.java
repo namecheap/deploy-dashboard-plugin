@@ -29,8 +29,8 @@ import net.sf.json.JSONObject;
 import org.jenkinsci.plugins.environmentdashboard.Deployment.DeploymentAction;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.verb.POST;
 import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.verb.POST;
 
 public class DeploymentView extends ListView {
     @DataBoundConstructor
@@ -218,8 +218,7 @@ public class DeploymentView extends ListView {
                 // TreeMap, not the default HashMap: the environment rows are
                 // rendered in map order, and hash order is neither stable across
                 // restarts nor meaningful to a reader.
-                .collect(Collectors.groupingBy(
-                        DeploymentAction::getEnv, TreeMap::new, Collectors.toList()))
+                .collect(Collectors.groupingBy(DeploymentAction::getEnv, TreeMap::new, Collectors.toList()))
                 .entrySet()
                 .stream()
                 .map(e -> new Unit.Environment(e.getKey(), e.getValue()))
@@ -227,8 +226,7 @@ public class DeploymentView extends ListView {
     }
 
     public List<Unit> getUnits(List<? extends TopLevelItem> items) {
-        return items
-                .stream()
+        return items.stream()
                 .map(item -> new Unit(item, getEnvs(item)))
                 .filter(unit -> !unit.getEnvironments().isEmpty())
                 .collect(Collectors.toList());

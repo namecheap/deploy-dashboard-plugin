@@ -54,8 +54,8 @@ public class BuildAddUrl extends Builder implements SimpleBuildStep {
             @NonNull FilePath workspace,
             @NonNull EnvVars env,
             @NonNull Launcher launcher,
-            @NonNull TaskListener listener
-    ) throws InterruptedException, IOException {
+            @NonNull TaskListener listener)
+            throws InterruptedException, IOException {
         run.addAction(new BuildUrlAction(title, url));
     }
 

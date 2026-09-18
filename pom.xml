@@ -1,20 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.jenkins.plugins</groupId>
-    <artifactId>deploy-dashboard</artifactId>
-    <version>0.2.2-SNAPSHOT</version>
-    <packaging>hpi</packaging>
+  <parent>
+    <groupId>org.jenkins-ci.plugins</groupId>
+    <artifactId>plugin</artifactId>
+    <version>6.2236.v12dd4c483242</version>
+    <relativePath />
+  </parent>
 
-    <name>Deploy Dashboard Plugin by Namecheap</name>
-    <description>
-        Jenkins view dashboard that shows the information about which releases deployed to which environment.
-    </description>
+  <groupId>io.jenkins.plugins</groupId>
+  <artifactId>deploy-dashboard</artifactId>
+  <version>0.2.2-SNAPSHOT</version>
+  <packaging>hpi</packaging>
+
+  <name>Deploy Dashboard Plugin by Namecheap</name>
+  <description>Jenkins view dashboard that shows the information about which releases deployed to which environment.</description>
+  <url>https://github.com/jenkinsci/deploy-dashboard-plugin</url>
+
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>vetal2409</id>
+      <name>Vitalii Sydorenko</name>
+      <email>vitaliy.sidorenko@namecheap.com</email>
+    </developer>
+    <developer>
+      <id>StyleT</id>
+      <name>Vlad Fedosov</name>
+      <email>vladlen.f@namecheap.com</email>
+    </developer>
+    <developer>
+      <id>vetal2409</id>
+      <name>Yuriy Puchkov</name>
+      <email>yuriy.puchkov@namecheap.com</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/jenkinsci/deploy-dashboard-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:jenkinsci/deploy-dashboard-plugin.git</developerConnection>
+    <tag>HEAD</tag>
     <url>https://github.com/jenkinsci/deploy-dashboard-plugin</url>
+  </scm>
 
-    <properties>
-        <jenkins.baseline>2.568</jenkins.baseline>
-        <!--
+  <distributionManagement>
+    <repository>
+      <id>repo.jenkins-ci.org</id>
+      <url>https://repo.jenkins-ci.org/releases</url>
+    </repository>
+  </distributionManagement>
+
+  <properties>
+    <jenkins.baseline>2.568</jenkins.baseline>
+    <!--
             .1, not a later point release. The baseline guide says to stay on
             the first release of the active LTS line unless something in a
             point release is actually needed, because every 2.568.x controller
@@ -22,28 +68,102 @@
             suite passes against 2.568.1. When 2.568 becomes a historical line
             the guide flips to the last release of it, and this becomes .3.
         -->
-        <jenkins.version>${jenkins.baseline}.1</jenkins.version>
-        <!--
+    <jenkins.version>${jenkins.baseline}.1</jenkins.version>
+    <!--
             Kept in a property so the scheduled compatibility workflow can test
             the plugin against the newest BOM of this line without editing the
             POM: ./mvnw verify -Djenkins.version=<core> -Djenkins.bom.version=<bom>
         -->
-        <jenkins.bom.version>7046.v43536164769c</jenkins.bom.version>
-    </properties>
+    <jenkins.bom.version>7046.v43536164769c</jenkins.bom.version>
 
-    <parent>
-        <groupId>org.jenkins-ci.plugins</groupId>
-        <artifactId>plugin</artifactId>
-        <version>6.2236.v12dd4c483242</version>
-        <relativePath />
-    </parent>
+    <!--
+      The gates the jenkinsci archetype turns on for every new plugin, all of
+      which the parent POM ships switched off. The code already satisfies every
+      one of them; the point is that it keeps doing so when someone pastes in an
+      older snippet, rather than finding out when an API is finally removed.
+    -->
+    <ban-commons-lang-2.skip>false</ban-commons-lang-2.skip>
+    <ban-deprecated-stapler.skip>false</ban-deprecated-stapler.skip>
+    <ban-junit4-imports.skip>false</ban-junit4-imports.skip>
+    <banObsoleteDependencyOverrides.skip>false</banObsoleteDependencyOverrides.skip>
+    <hpi.strictBundledArtifacts>true</hpi.strictBundledArtifacts>
+    <spotless.check.skip>false</spotless.check.skip>
+  </properties>
 
-    <build>
-        <plugins>
-            <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <!--
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.jenkins.tools.bom</groupId>
+        <artifactId>bom-${jenkins.baseline}.x</artifactId>
+        <version>${jenkins.bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.jenkins.plugins</groupId>
+      <artifactId>ionicons-api</artifactId>
+    </dependency>
+    <!-- MockSCMController, so the multibranch case can be built for real. -->
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>scm-api</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-basic-steps</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-cps</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-durable-task-step</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+            workflow-multibranch was a compile dependency only because the view
+            named WorkflowMultiBranchProject to decide how to find builds. It
+            walks ItemGroups generically now, so every install no longer has to
+            carry multibranch and its transitive Pipeline plugins to render a
+            dashboard of freestyle jobs. It stays on the test classpath, where
+            the multibranch case is still asserted.
+        -->
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-multibranch</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <repositories>
+    <repository>
+      <id>repo.jenkins-ci.org</id>
+      <url>https://repo.jenkins-ci.org/public/</url>
+    </repository>
+  </repositories>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>repo.jenkins-ci.org</id>
+      <url>https://repo.jenkins-ci.org/public/</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!--
                         The parent sets reuseForks=false, so every test class
                         already pays for a fresh JVM and a fresh Jenkins. With
                         the default forkCount of 1 those starts were serial,
@@ -71,117 +191,9 @@
                         to CI; a laptop has more cores than a runner and they
                         do not transfer.
                     -->
-                    <forkCount>0.5C</forkCount>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>io.jenkins.tools.bom</groupId>
-                <artifactId>bom-${jenkins.baseline}.x</artifactId>
-                <version>${jenkins.bom.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>io.jenkins.plugins</groupId>
-            <artifactId>ionicons-api</artifactId>
-        </dependency>
-        <!--
-            workflow-multibranch was a compile dependency only because the view
-            named WorkflowMultiBranchProject to decide how to find builds. It
-            walks ItemGroups generically now, so every install no longer has to
-            carry multibranch and its transitive Pipeline plugins to render a
-            dashboard of freestyle jobs. It stays on the test classpath, where
-            the multibranch case is still asserted.
-        -->
-        <dependency>
-            <groupId>org.jenkins-ci.plugins.workflow</groupId>
-            <artifactId>workflow-multibranch</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jenkins-ci.plugins.workflow</groupId>
-            <artifactId>workflow-cps</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- MockSCMController, so the multibranch case can be built for real. -->
-        <dependency>
-            <groupId>org.jenkins-ci.plugins</groupId>
-            <artifactId>scm-api</artifactId>
-            <classifier>tests</classifier>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jenkins-ci.plugins.workflow</groupId>
-            <artifactId>workflow-basic-steps</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jenkins-ci.plugins.workflow</groupId>
-            <artifactId>workflow-durable-task-step</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <scm>
-        <connection>scm:git:https://github.com/jenkinsci/deploy-dashboard-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:jenkinsci/deploy-dashboard-plugin.git</developerConnection>
-        <url>https://github.com/jenkinsci/deploy-dashboard-plugin</url>
-        <tag>HEAD</tag>
-    </scm>
-
-    <developers>
-        <developer>
-            <id>vetal2409</id>
-            <name>Vitalii Sydorenko</name>
-            <email>vitaliy.sidorenko@namecheap.com</email>
-        </developer>
-        <developer>
-            <id>StyleT</id>
-            <name>Vlad Fedosov</name>
-            <email>vladlen.f@namecheap.com</email>
-        </developer>
-        <developer>
-            <id>vetal2409</id>
-            <name>Yuriy Puchkov</name>
-            <email>yuriy.puchkov@namecheap.com</email>
-        </developer>
-    </developers>
-
-    <repositories>
-        <repository>
-            <id>repo.jenkins-ci.org</id>
-            <url>https://repo.jenkins-ci.org/public/</url>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>repo.jenkins-ci.org</id>
-            <url>https://repo.jenkins-ci.org/public/</url>
-        </pluginRepository>
-    </pluginRepositories>
-
-    <distributionManagement>
-        <repository>
-            <id>repo.jenkins-ci.org</id>
-            <url>https://repo.jenkins-ci.org/releases</url>
-        </repository>
-    </distributionManagement>
+          <forkCount>0.5C</forkCount>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
