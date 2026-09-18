@@ -29,6 +29,11 @@ public class BuildUrlDetailFactory extends DetailFactory<Run> {
     @NonNull
     public List<? extends Detail> createFor(@NonNull Run target) {
         return target.getActions(BuildUrlAction.class).stream()
+                // The details bar is the third place a link surfaces, next to
+                // the classic sidebar and the redirect endpoint itself. All
+                // three have to agree, or "hidden" means only "hidden in one
+                // of the places you might look".
+                .filter(BuildUrlAction::isVisible)
                 .map(action -> new BuildUrlDetail(target, action))
                 .collect(Collectors.toList());
     }
