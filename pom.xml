@@ -15,6 +15,12 @@
     <properties>
         <jenkins.baseline>2.568</jenkins.baseline>
         <jenkins.version>${jenkins.baseline}.2</jenkins.version>
+        <!--
+            Kept in a property so the scheduled compatibility workflow can test
+            the plugin against the newest BOM of this line without editing the
+            POM: ./mvnw verify -Djenkins.version=<core> -Djenkins.bom.version=<bom>
+        -->
+        <jenkins.bom.version>6815.v1fb_2a_fee3765</jenkins.bom.version>
     </properties>
 
     <parent>
@@ -29,7 +35,7 @@
             <dependency>
                 <groupId>io.jenkins.tools.bom</groupId>
                 <artifactId>bom-${jenkins.baseline}.x</artifactId>
-                <version>6815.v1fb_2a_fee3765</version>
+                <version>${jenkins.bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

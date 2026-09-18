@@ -1,0 +1,220 @@
+# Does the plugin still work on the Jenkins that is released *today*?
+#
+# ci.yml proves the plugin against the core and plugin BOM pinned in pom.xml.
+# Those pins only move when someone edits the POM, so a change in Jenkins core
+# that breaks this plugin -- a removed API, a Jelly form that expects different
+# parameters, a stricter test harness -- stays invisible until a user upgrades
+# their controller. This workflow closes that gap: once a week it resolves the
+# current LTS, the current weekly and the newest plugin BOM of our baseline
+# line from the official feeds, and runs the whole build against each of them,
+# exactly the way the Plugin Compatibility Tester does (override jenkins.version,
+# keep everything else). It also runs the e2e against the weekly Docker image.
+#
+# Nothing here changes the plugin's own baseline. A red run means "the next
+# Jenkins will break us", which is the point of having it.
+name: Jenkins compatibility
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, after the weekly release (Tuesdays) and the LTS point releases have settled
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/jenkins-compat.yml
+      - .github/e2e/**
+      - pom.xml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jenkins-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Ask the official feeds what "current" means right now.
+  # ---------------------------------------------------------------------------
+  versions:
+    name: Resolve current Jenkins releases
+    runs-on: ubuntu-24.04
+    outputs:
+      lts: ${{ steps.resolve.outputs.lts }}
+      weekly: ${{ steps.resolve.outputs.weekly }}
+      baseline: ${{ steps.resolve.outputs.baseline }}
+      bom: ${{ steps.resolve.outputs.bom }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: resolve
+        run: |
+          set -euo pipefail
+          lts=$(curl -fsSL https://updates.jenkins.io/stable/latestCore.txt)
+          weekly=$(curl -fsSL https://updates.jenkins.io/current/latestCore.txt)
+          baseline=$(sed -n 's:.*<jenkins.baseline>\(.*\)</jenkins.baseline>.*:\1:p' pom.xml)
+          bom=$(curl -fsSL "https://repo.jenkins-ci.org/releases/io/jenkins/tools/bom/bom-${baseline}.x/maven-metadata.xml" \
+                | sed -n 's:.*<latest>\(.*\)</latest>.*:\1:p')
+          pinned_core=$(sed -n 's:.*<jenkins.version>\(.*\)</jenkins.version>.*:\1:p' pom.xml | sed "s/\${jenkins.baseline}/${baseline}/")
+          pinned_bom=$(sed -n 's:.*<jenkins.bom.version>\(.*\)</jenkins.bom.version>.*:\1:p' pom.xml)
+
+          # A feed hiccup must fail loudly here, not as a confusing Maven error later.
+          [[ "$lts"    =~ ^2\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad LTS version from updates.jenkins.io: '$lts'"; exit 1; }
+          [[ "$weekly" =~ ^2\.[0-9]+$ ]]         || { echo "::error::bad weekly version from updates.jenkins.io: '$weekly'"; exit 1; }
+          [[ "$baseline" =~ ^2\.[0-9]+$ ]]       || { echo "::error::could not read jenkins.baseline from pom.xml"; exit 1; }
+          [[ -n "$bom" ]]                        || { echo "::error::no bom-${baseline}.x release found"; exit 1; }
+
+          {
+            echo "lts=$lts"; echo "weekly=$weekly"; echo "baseline=$baseline"; echo "bom=$bom"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Jenkins versions under test"
+            echo
+            echo "| | pinned in pom.xml | current release |"
+            echo "|---|---|---|"
+            echo "| core (LTS line ${baseline}) | ${pinned_core} | ${lts} |"
+            echo "| core (weekly) | – | ${weekly} |"
+            echo "| plugin BOM bom-${baseline}.x | ${pinned_bom} | ${bom} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # The full build -- unit tests, JenkinsRule integration tests, SpotBugs --
+  # with only the core (and, for the LTS leg, the BOM) swapped for the current
+  # release. That is the PCT recipe: jenkins.version is the one property
+  # plugin-pom documents as overridable for exactly this purpose.
+  #
+  # The JDK 25 leg mirrors the jenkinsci archetype's Jenkinsfile (linux/25 +
+  # windows/21); Jenkins 2.555.1+ supports Java 21 or 25 and ci.yml only runs 21.
+  # ---------------------------------------------------------------------------
+  maven:
+    name: ${{ matrix.name }}
+    needs: versions
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Latest LTS ${{ needs.versions.outputs.lts }} + BOM ${{ needs.versions.outputs.bom }}
+            jdk: 21
+            args: -Djenkins.version=${{ needs.versions.outputs.lts }} -Djenkins.bom.version=${{ needs.versions.outputs.bom }}
+          - name: Latest weekly ${{ needs.versions.outputs.weekly }}
+            jdk: 21
+            args: -Djenkins.version=${{ needs.versions.outputs.weekly }}
+          - name: Declared baseline on JDK 25
+            jdk: 25
+            args: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: ${{ matrix.jdk }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp verify ${{ matrix.args }}
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: surefire-${{ strategy.job-index }}
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # The packaged plugin inside the current *weekly* Jenkins image. ci.yml runs
+  # the same e2e on lts-jdk21; this is the same assertions one release line
+  # ahead, which is where UI and Jelly changes land first.
+  # ---------------------------------------------------------------------------
+  e2e-weekly:
+    name: E2E on jenkins/jenkins:latest-jdk21 (weekly)
+    needs: versions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+
+      - name: Package the plugin
+        run: ./mvnw -B -ntp -DskipTests -Dspotbugs.skip package
+
+      - name: Build the weekly Jenkins with the plugin installed
+        run: |
+          set -euo pipefail
+          cp target/*.hpi .github/e2e/deploy-dashboard.hpi
+          docker build --build-arg JENKINS_IMAGE=jenkins/jenkins:latest-jdk21 -t dd-e2e-weekly .github/e2e
+
+      - name: Start it
+        run: docker run -d --name jenkins -p 8080:8080 dd-e2e-weekly
+
+      - name: Wait for Jenkins to come up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/login >/dev/null 2>&1; then
+              echo "Jenkins $(curl -fsSI http://localhost:8080/login | tr -d '\r' | awk 'tolower($1)=="x-jenkins:"{print $2}') answered after $((i * 5))s"
+              sleep 5
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Jenkins did not start within 5 minutes"
+          docker logs jenkins
+          exit 1
+
+      - name: The plugin is installed and active
+        run: python3 .github/e2e/check_installed.py
+
+      - name: Run the seeded pipeline and assert the dashboard
+        run: .github/e2e/assert.sh
+
+      - name: Jenkins log on failure
+        if: failure()
+        run: docker logs jenkins
+
+  # ---------------------------------------------------------------------------
+  # A scheduled failure nobody is watching is not a signal. Open one issue (or
+  # add to the open one) so the break lands in the tracker with a link to the run.
+  # ---------------------------------------------------------------------------
+  report:
+    name: File an issue on a scheduled failure
+    needs: [versions, maven, e2e-weekly]
+    if: always() && github.event_name != 'pull_request' && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - run: |
+          set -euo pipefail
+          gh label create jenkins-compat --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Plugin no longer builds or passes against a current Jenkins release" --force
+          title="Plugin fails against current Jenkins (LTS ${{ needs.versions.outputs.lts }} / weekly ${{ needs.versions.outputs.weekly }})"
+          body=$(cat <<BODY
+          The scheduled compatibility run failed: ${RUN_URL}
+
+          | leg | result |
+          |---|---|
+          | Maven (latest LTS + BOM, latest weekly, JDK 25) | ${{ needs.maven.result }} |
+          | E2E on the weekly image | ${{ needs.e2e-weekly.result }} |
+
+          Pinned in pom.xml: baseline ${{ needs.versions.outputs.baseline }}. Check the failing leg's log and surefire artefacts, reproduce locally with the same \`-Djenkins.version=…\` override, and fix or record why it cannot be fixed yet.
+          BODY
+          )
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label jenkins-compat --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label jenkins-compat --label bug --body "$body"
+          fi
