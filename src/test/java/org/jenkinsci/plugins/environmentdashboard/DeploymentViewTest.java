@@ -76,6 +76,39 @@ class DeploymentViewTest {
     }
 
     @Test
+    void aRecordWithNoEnvironmentDoesNotTakeTheWholeDashboardDown(JenkinsRule j) throws Exception {
+        // The step will not create one of these any more, but the builds that
+        // already have one outlive the fix, and one of them used to 500 the
+        // entire view -- every job on it, for every user, until that single
+        // build was deleted. Attached directly, which is how it got on disk.
+        WorkflowJob job = j.createProject(WorkflowJob.class, "legacy");
+        job.setDefinition(new CpsFlowDefinition(
+                "node { addDeployToDashboard(env: 'production', buildNumber: '1.2.3') }", true));
+        WorkflowRun run = j.buildAndAssertSuccess(job);
+        run.addAction(new Deployment.DeploymentAction(null, "9.9.9"));
+        run.save();
+
+        DeploymentView view = new DeploymentView("legacy-view");
+        j.jenkins.addView(view);
+        view.setIncludeRegex("legacy");
+        view.save();
+
+        List<DeploymentView.Unit> units = view.getUnits(view.getItems());
+        assertEquals(1, units.size());
+        assertEquals(List.of("production"),
+                units.get(0).getEnvironments().stream()
+                        .map(DeploymentView.Unit.Environment::getName)
+                        .collect(Collectors.toList()),
+                "the unusable record is dropped, the good one still shows");
+
+        try (JenkinsRule.WebClient wc = j.createWebClient()) {
+            HtmlPage page = wc.goTo("view/legacy-view/");
+            assertEquals(200, page.getWebResponse().getStatusCode());
+            assertTrue(page.getWebResponse().getContentAsString().contains("1.2.3"));
+        }
+    }
+
+    @Test
     void viewRendersDeploymentsWithoutInlineJavascript(JenkinsRule j) throws Exception {
         WorkflowJob job = j.createProject(WorkflowJob.class, "app");
         job.setDefinition(new CpsFlowDefinition(
