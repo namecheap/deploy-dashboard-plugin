@@ -307,12 +307,25 @@ public class BuildAddUrl extends Builder implements SimpleBuildStep {
          * reachable through the run's URL, which Jenkins already gates on
          * Item.READ while resolving the job and the build.
          *
-         * <p>It does check {@code visibleTo}. Hiding the icon is not access
-         * control -- the URL is in the page source, and this endpoint has a
-         * derivable path -- so a link someone is not meant to see answers 404
-         * here rather than merely being absent from their sidebar.
+         * <p>It additionally checks {@code visibleTo}. Hiding the icon is not
+         * access control -- the URL is in the page source, and this endpoint
+         * has a derivable path -- so a link someone is not meant to see answers
+         * 404 here rather than merely being absent from their sidebar. That is
+         * a narrowing on top of the permission Jenkins has already required,
+         * not a replacement for it.
+         *
+         * <p>The no-permission-check suppression below is deliberate and was
+         * briefly removed in error. The scanner looks for an explicit
+         * checkPermission/hasPermission call and cannot see that this method is
+         * protected by routing: it is only reachable as a child of the Run, so
+         * core has already enforced Item.READ on the job and the build before
+         * anything here executes. The method has no side effects, and the URL
+         * it redirects to is one the same caller can read off the build page.
+         * Removing the suppression because visibleTo was added conflated a
+         * principal check with a permission check; they are different things
+         * and the original justification still holds.
          */
-        // lgtm[jenkins/csrf]
+        // lgtm[jenkins/csrf] lgtm[jenkins/no-permission-check]
         public void doIndex(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException {
             if (!isSafeUrl() || !isVisible()) {
                 rsp.sendError(StaplerResponse2.SC_NOT_FOUND);
