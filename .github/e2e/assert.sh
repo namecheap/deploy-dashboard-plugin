@@ -78,6 +78,15 @@ grep -q 'javascript:toggle' <<<"$html" \
 grep -q 'edb-popup-toggle' <<<"$html" \
   || fail "the CSP-safe modal toggle is missing"
 
+# Collapsing is client-side, so the served HTML always carries every row. A
+# reader without scripts, and anything scraping the page, must still see them.
+grep -q 'edb-toggle' <<<"$html" \
+  || fail "the per-job collapse toggle is missing"
+[ "$(grep -c 'class="edb-job"' <<<"$html")" -ge 1 ] \
+  || fail "no per-job summary row was rendered"
+[ "$(grep -c 'class="edb-job-envs"' <<<"$html")" -ge 1 ] \
+  || fail "no per-job environment section was rendered"
+
 # The dashboard must render on core's current table styling, not the legacy
 # pane/bigtable classes core only keeps for compatibility.
 grep -q 'jenkins-table' <<<"$html" \

@@ -249,6 +249,18 @@ public class DeploymentView extends ListView {
             return environments;
         }
 
+        /**
+         * The most recent deployment this job made anywhere, for the collapsed
+         * summary row. Null only if the job has no environments, in which case
+         * getUnits has already dropped it.
+         */
+        public DeploymentAction getNewestDeployment() {
+            return environments.stream()
+                    .map(Environment::getCurrentAction)
+                    .max(Comparator.comparingLong(a -> a.getRun().getStartTimeInMillis()))
+                    .orElse(null);
+        }
+
         public static class Environment {
             /** Most recently started deployment first, so `get(0)` is the current one. */
             private static final Comparator<DeploymentAction> NEWEST_FIRST = Comparator.comparingLong(

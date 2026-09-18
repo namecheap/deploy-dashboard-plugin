@@ -33,6 +33,7 @@
             <table class="jenkins-table jenkins-table--medium">
                 <thead>
                     <tr>
+                        <th class="jenkins-table__cell--tight"><span class="jenkins-visually-hidden">Expand</span></th>
                         <th>Job</th>
                         <th>Environment</th>
                         <th>Release</th>
@@ -40,15 +41,37 @@
                         <th>Completed</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <j:forEach var="unit" indexVar="i" items="${units}">
+                <j:forEach var="unit" indexVar="i" items="${units}">
+                    <tbody class="edb-job">
+                        <tr>
+                            <td class="jenkins-table__cell--tight">
+                                <button type="button" class="jenkins-button jenkins-button--tertiary edb-toggle"
+                                        data-edb-toggle="edb-envs-${i}" aria-controls="edb-envs-${i}"
+                                        aria-expanded="true">
+                                    <l:icon class="symbol-chevron-down-outline plugin-ionicons-api"/>
+                                </button>
+                            </td>
+                            <td>
+                                <a class="jenkins-table__link" href="${unit.getJob().getAbsoluteUrl()}">${unit.getJob().name}</a>
+                            </td>
+                            <td>${unit.getEnvironments().size()} environment(s)</td>
+                            <td>
+                                <a class="jenkins-table__link" href="${unit.getNewestDeployment().run.getAbsoluteUrl()}">
+                                    ${unit.getNewestDeployment().buildNumber}
+                                </a>
+                            </td>
+                            <td class="jenkins-table__cell--tight">
+                                <l:icon alt="${unit.getNewestDeployment().run.description}"
+                                        class="${unit.getNewestDeployment().run.buildStatusIconClassName} icon-lg"/>
+                            </td>
+                            <td>${unit.getNewestDeployment().run.timestampString}</td>
+                        </tr>
+                    </tbody>
+                    <tbody class="edb-job-envs" id="edb-envs-${i}">
                         <j:forEach var="environment" indexVar="j" items="${unit.getEnvironments()}">
                             <tr>
-                                <td>
-                                    <j:if test="${j == 0}">
-                                        <a class="jenkins-table__link" href="${unit.getJob().getAbsoluteUrl()}">${unit.getJob().name}</a>
-                                    </j:if>
-                                </td>
+                                <td class="jenkins-table__cell--tight"/>
+                                <td/>
                                 <td>
                                     <a href="#" class="edb-popup-toggle jenkins-table__link"
                                        data-popup-id="popup_${i}_${j}"
@@ -70,8 +93,8 @@
                                 </td>
                             </tr>
                         </j:forEach>
-                    </j:forEach>
-                </tbody>
+                    </tbody>
+                </j:forEach>
             </table>
 
             <j:forEach var="unit" indexVar="i" items="${units}">
