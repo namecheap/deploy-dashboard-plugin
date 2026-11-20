@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+A maintenance release. The plugin code is the same as in 0.3.0; only the build
+and CI changed.
+
+### Build and CI
+
+- The CI and weekly Jenkins compatibility workflows now retry a Maven Central
+  rate limit (HTTP 429) up to 10 times instead of 3. A short rate limit had
+  failed the latest-LTS compatibility leg with "Non-resolvable import POM",
+  although the plugin itself was compatible (#47, #48).
+
 ## 0.3.0
 
 First release since 0.2.1, covering 21 merged pull requests.
