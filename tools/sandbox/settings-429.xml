@@ -1,0 +1,10 @@
+<settings>
+  <!-- Send every download to fake429.py; only used by `sandbox.sh retry-check`. -->
+  <mirrors>
+    <mirror>
+      <id>fake429</id>
+      <mirrorOf>*</mirrorOf>
+      <url>http://127.0.0.1:18429/</url>
+    </mirror>
+  </mirrors>
+</settings>

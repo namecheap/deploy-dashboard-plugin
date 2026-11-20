@@ -26,6 +26,13 @@ The build enforces the standard jenkinsci formatting, so if it fails with
 It also fails on imports the Jenkins project has retired: `StaplerRequest`/`StaplerResponse`
 (use the `2` variants), JUnit 4, and `org.apache.commons.lang` (use `lang3`).
 
+No JDK on your machine? [tools/sandbox](tools/sandbox/README.md) runs the same
+build, and the Jenkins LTS and weekly compatibility legs, inside Docker:
+
+```bash
+tools/sandbox/sandbox.sh pinned
+```
+
 ## Release (Only for Plugin's maintainers)
 
 See [docs/RELEASE.md](docs/RELEASE.md). The instructions used to be written out
