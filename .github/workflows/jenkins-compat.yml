@@ -27,6 +27,16 @@ on:
 permissions:
   contents: read
 
+# Maven Central answers bursts of requests with 429 Too Many Requests. Maven
+# 3.9's resolver already retries a 429 (or 503), but only 3 times with a 5 s
+# linear backoff -- about 30 s in all -- which a scheduled run that resolves a
+# fresh BOM tree did not survive (#47). Allow 10 retries (up to ~4.5 min, or
+# whatever Retry-After asks for) so a rate limit is waited out instead of
+# failing the build with "Non-resolvable import POM". Maven 3.9 reads
+# MAVEN_ARGS itself, so this reaches every ./mvnw call in the file.
+env:
+  MAVEN_ARGS: -Daether.connector.http.retryHandler.count=10
+
 concurrency:
   group: jenkins-compat-${{ github.ref }}
   cancel-in-progress: true
